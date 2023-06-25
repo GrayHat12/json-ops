@@ -116,8 +116,12 @@ export function AppProvider({ children }: AppProviderProps) {
     }
 
     function getSavedComparisonMetas() {
+        console.log("Getting saved comparison metas");
         let data = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (!data) return;
+        if (!data) {
+            setInitializing(false);
+            return;
+        };
         try {
             let parsedData = JSON.parse(data);
             if (!Array.isArray(parsedData)) return;

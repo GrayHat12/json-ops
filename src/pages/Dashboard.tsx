@@ -22,7 +22,7 @@ export default function Dashboard() {
                 </Card.Header>
                 <Card.Body css={{ p: 0 }}>
                     <Card.Image
-                        src="/add.jpg"
+                        src="./add.jpg"
                         objectFit="cover"
                         width="100%"
                         height="100%"
@@ -44,7 +44,7 @@ export default function Dashboard() {
                             <Row>
                                 <Col span={3}>
                                     <Card.Image
-                                        src="/vite.svg"
+                                        src="./vite.svg"
                                         css={{ bg: "black", br: "50%" }}
                                         height={40}
                                         width={40}

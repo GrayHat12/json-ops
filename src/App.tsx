@@ -1,5 +1,5 @@
 import { lazy, Suspense, LazyExoticComponent } from "react";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createHashRouter, RouterProvider } from "react-router-dom";
 import Loading from "./pages/Loading";
 import { AppProvider } from "./context/AppContext";
 import Header from "./components/Header";
@@ -35,7 +35,7 @@ export function RootApp() {
     );
 }
 
-const router = createBrowserRouter([
+const router = createHashRouter([
     {
         path: "/",
         element: <RootApp />,
