@@ -49,10 +49,14 @@ const router = createBrowserRouter([
                 element: <Page PAGE={Compare} />,
             },
             {
-                path: "loading",
+                path: "loader",
                 element: <Loading />,
             },
-        ],
+        ]
+    },
+    {
+        path: "/loading",
+        element: <Loading />,
     },
 ]);
 
