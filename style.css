@@ -1,0 +1,130 @@
+
+
+#left-pane div[data-path="%2Fa"] {
+    --background-color-custom: #F6D283;
+    background-color: var(--background-color-custom);
+}
+#left-pane div[data-path="%2Fa"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#left-pane div[data-path="%2Fa"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#left-pane div[data-path="%2Fb%2Fc"] {
+    --background-color-custom: #F6D283;
+    background-color: var(--background-color-custom);
+}
+#left-pane div[data-path="%2Fb%2Fc"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#left-pane div[data-path="%2Fb%2Fc"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#left-pane div[data-path="%2Fb%2Fc"] {
+    --background-color-custom: #F6D283;
+    background-color: var(--background-color-custom);
+}
+#left-pane div[data-path="%2Fb%2Fc"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#left-pane div[data-path="%2Fb%2Fc"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#left-pane div[data-path="%2Fb%2Fee"] {
+    --background-color-custom: #ED8373;
+    background-color: var(--background-color-custom);
+}
+#left-pane div[data-path="%2Fb%2Fee"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#left-pane div[data-path="%2Fb%2Fee"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#left-pane div[data-path="%2Fb%2Fee"] {
+    --background-color-custom: #ED8373;
+    background-color: var(--background-color-custom);
+}
+#left-pane div[data-path="%2Fb%2Fee"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#left-pane div[data-path="%2Fb%2Fee"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#right-pane div[data-path="%2Fa"] {
+    --background-color-custom: #F6D283;
+    background-color: var(--background-color-custom);
+}
+#right-pane div[data-path="%2Fa"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#right-pane div[data-path="%2Fa"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#right-pane div[data-path="%2Fb%2Fc"] {
+    --background-color-custom: #F6D283;
+    background-color: var(--background-color-custom);
+}
+#right-pane div[data-path="%2Fb%2Fc"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#right-pane div[data-path="%2Fb%2Fc"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#right-pane div[data-path="%2Fb%2Fc"] {
+    --background-color-custom: #F6D283;
+    background-color: var(--background-color-custom);
+}
+#right-pane div[data-path="%2Fb%2Fc"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#right-pane div[data-path="%2Fb%2Fc"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#right-pane div[data-path="%2Fb%2Fe"] {
+    --background-color-custom: #C5DA8B;
+    background-color: var(--background-color-custom);
+}
+#right-pane div[data-path="%2Fb%2Fe"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#right-pane div[data-path="%2Fb%2Fe"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
+
+
+#right-pane div[data-path="%2Fb%2Fe"] {
+    --background-color-custom: #C5DA8B;
+    background-color: var(--background-color-custom);
+}
+#right-pane div[data-path="%2Fb%2Fe"]>div>div {
+    background-color: var(--background-color-custom) !important;
+}
+#right-pane div[data-path="%2Fb%2Fe"] div {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+}
