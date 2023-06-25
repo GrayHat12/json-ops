@@ -8,7 +8,7 @@ export default function Dashboard() {
         navigate("compare/new");
     }
     return (
-        <Container css={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Container css={{ display: "flex", alignItems: "center", height: "85vh", justifyContent: "center" }}>
             <Card onPress={onPress} isPressable css={{ w: "80%", h: "400px", maxW: "500px" }}>
                 <Card.Header css={{ position: "absolute", zIndex: 1, top: 5 }}>
                     <Col>
@@ -22,7 +22,7 @@ export default function Dashboard() {
                 </Card.Header>
                 <Card.Body css={{ p: 0 }}>
                     <Card.Image
-                        src="public/add.jpg"
+                        src="/add.jpg"
                         objectFit="cover"
                         width="100%"
                         height="100%"
@@ -44,7 +44,7 @@ export default function Dashboard() {
                             <Row>
                                 <Col span={3}>
                                     <Card.Image
-                                        src="public/vite.svg"
+                                        src="/vite.svg"
                                         css={{ bg: "black", br: "50%" }}
                                         height={40}
                                         width={40}
