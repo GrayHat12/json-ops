@@ -11,6 +11,7 @@ import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
 
 let interval: number | undefined = undefined;
+let differenceInterval: number | undefined = undefined;
 
 function getStylesElement(id: string) {
     let styleElement = document.getElementById(id);
@@ -122,9 +123,17 @@ export default function Compare() {
                 rightjson = JSON.parse(right.text);
             } catch (err) {}
         }
+        if (differenceInterval) {
+            clearInterval(differenceInterval);
+            differenceInterval = undefined;
+        }
         if (leftjson && rightjson) {
             console.log("Finding difference");
-            setDifference(difference(leftjson, rightjson));
+            differenceInterval = setInterval(() => {
+                setDifference(difference(leftjson, rightjson));
+                clearInterval(differenceInterval);
+                console.log("Difference found");
+            }, 500);
         } else {
             setDifference(null);
         }
@@ -149,49 +158,52 @@ export default function Compare() {
         let first = true;
         let styleRules: string[] = [];
         let styleElement = getStylesElement(STYLE_ID);
-        let uniqueDataPaths: string[] = [];
+        // let uniqueDataPaths: string[] = [];
+        // path.forEach((pathItem) => {});
         while (path.length > 0) {
             let datapath = `%2F${path.join("%2F")}`;
-            if (!uniqueDataPaths.includes(datapath)) {
-                uniqueDataPaths.push(datapath);
-            } else {
-                path.pop();
-                first = false;
-                continue;
-            }
-            if (first) {
+            // if (!uniqueDataPaths.includes(datapath)) {
+            //     uniqueDataPaths.push(datapath);
+            // } else {
+                // path.pop();
+                // first = false;
+                // continue;
+            // }
+            // if (first) {
                 styleRules.push(`
                 #${editorid} div[data-path="${datapath}"] {
                     --background-color-custom: ${
                         className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"
                     };
                 }
-                #${editorid} div[data-path="${datapath}"]>div>div {
+                #${editorid} div[data-path="${datapath}"]>div:first-child>div {
+                    color: #292D1C !important;
+                    --jse-key-color: #292D1C !important;
                     background-color: var(--background-color-custom) !important;
                 }
-                #${editorid} div[data-path="${datapath}"] div {
+                #${editorid} div[data-path="${datapath}"]:first-child {
                     color: #292D1C !important;
                     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
                 }
                 `);
-            } else {
-                styleRules.push(`
-                #${editorid} div[data-path="${datapath}"] {
-                    --background-color-custom: #F6D283;
-                }
-                #${editorid} div[data-path="${datapath}"]>div:first-child>div:first-child {
-                    background-color: var(--background-color-custom) !important;
-                    --jse-key-color: #292D1C;
-                    --jse-delimiter-color: #292D1C;
-                    // color: #292D1C !important;
-                }
-                #${editorid} div[data-path="${datapath}"] div {
-                    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-                }
-                `);
-            }
+            // } else {
+                // styleRules.push(`
+                // #${editorid} div[data-path="${datapath}"] {
+                //     --background-color-custom: #F6D283;
+                // }
+                // #${editorid} div[data-path="${datapath}"]>div:first-child>div:first-child {
+                //     background-color: var(--background-color-custom) !important;
+                //     --jse-key-color: #292D1C;
+                //     --jse-delimiter-color: #292D1C;
+                //     // color: #292D1C !important;
+                // }
+                // #${editorid} div[data-path="${datapath}"] div {
+                //     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+                // }
+                // `);
+            // }
             // element.classList.add(first ? className : parentClassName);
-            first = false;
+            // first = false;
             path.pop();
         }
         styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
@@ -200,7 +212,7 @@ export default function Compare() {
 
     function highlightDifference(sideDiff: JSONDiff, editor: string) {
         sideDiff.different.forEach((path) => {
-            console.log(path);
+            // console.log(path);
             let _path = parseJSONPath(path.substring(2));
             highlightPath(_path, editor, styles.different);
         });
@@ -309,6 +321,7 @@ export default function Compare() {
             let data = JSON.parse(cleanJSON(JSON.stringify(json)));
             let sorted = sortObj(data);
             leftRefEditor.current.set({ json: sorted });
+            onLeftChange({json: sorted}, {json: data}, {contentErrors: null, patchResult: null});
         } catch (err) {
             console.error(err);
             return;
@@ -331,6 +344,7 @@ export default function Compare() {
             let data = JSON.parse(cleanJSON(JSON.stringify(json)));
             let sorted = sortObj(data);
             rightRefEditor.current.set({ json: sorted });
+            onRightChange({json: sorted}, {json: data}, {contentErrors: null, patchResult: null});
         } catch (err) {
             console.error(err);
             return;
