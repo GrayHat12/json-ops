@@ -34,7 +34,6 @@ export default function JSONPane(props: JSONPaneProps) {
             }}
         >
             <Container alignItems="flex-start" css={{ padding: 0 }}>
-                <Input width="100%" size="sm" placeholder="Json Title" {...props.bindingsTitle} />
                 <Container
                     display="flex"
                     css={{
@@ -51,6 +50,7 @@ export default function JSONPane(props: JSONPaneProps) {
                             Tree
                         </Button>
                     </Button.Group>
+                    <Input css={{flex: 1}} size="sm" placeholder="Json Title" {...props.bindingsTitle} />
                     <Button.Group size="xs">
                         <Button
                             onClick={props.sortData}

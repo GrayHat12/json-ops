@@ -36,10 +36,11 @@ const STYLE_ID = "jsoneditor-styles-custom";
 export default function Compare() {
     const [title, setTitle] = useState<string>("");
     const [assignedId, setAssignedId] = useState<number>();
-    const [uniqueDiff, setUniqueDiff] = useState<{ pathLeft?: string; pathRight?: string; pointer: boolean }[]>([]);
+    const [uniqueDiff, setUniqueDiff] = useState<{ pathLeft?: string; pathRight?: string}[]>([]);
     const [differenceObject, setDifference] = useState<Difference | null>(null);
     const [leftMode, setLeftMode] = useState<Mode>(Mode.tree);
     const [rightMode, setRightMode] = useState<Mode>(Mode.tree);
+    const [currentDifferenceIndex, setCurrentDifferenceIndex] = useState<number>(0);
 
     const leftRefEditor = useRef<JSONEditor>();
     const rightRefEditor = useRef<JSONEditor>();
@@ -221,26 +222,24 @@ export default function Compare() {
         }
         let left = differenceObject.left;
         let right = differenceObject.right;
-        let uniques: { pathLeft?: string; pathRight?: string; pointer: boolean }[] = [];
-        left.different.forEach((path) => {
+        let uniques: { pathLeft?: string; pathRight?: string;}[] = [];
+        left.different.filter((x, index) => !left.different.find((y,_index) => y.startsWith(x) && index != _index)).forEach((path) => {
             if (right.different.includes(path)) {
-                uniques.push({ pathLeft: path, pathRight: path, pointer: false });
+                uniques.push({ pathLeft: path, pathRight: path});
             }
         });
         left.extra.forEach((path) => {
             if (!right.extra.includes(path)) {
-                uniques.push({ pathLeft: path, pointer: false });
+                uniques.push({ pathLeft: path});
             }
         });
         right.extra.forEach((path) => {
             if (!left.extra.includes(path)) {
-                uniques.push({ pathRight: path, pointer: false });
+                uniques.push({ pathRight: path});
             }
         });
-        if (uniques.length > 0) {
-            uniques[0].pointer = true;
-        }
         setUniqueDiff(uniques);
+        setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
     }, [differenceObject]);
 
     async function regularHighlightJob() {
@@ -339,6 +338,50 @@ export default function Compare() {
         }
     }
 
+    function focusDifference(index: number) {
+        if (uniqueDiff.length < index) return;
+        let diff = uniqueDiff[index];
+        if (!diff) return;
+        if (diff.pathLeft) {
+            if (!leftRefEditor.current) return;
+            try {
+                let _path = parseJSONPath(diff.pathLeft);
+                leftRefEditor.current.expand((path) => {
+                    if (!path) return true;
+                    let joined = path.join('.');
+                    let joined_ours = _path.join('.').substring(2);
+                    let equal = joined_ours.startsWith(joined);
+                    return equal;
+                });
+                leftRefEditor.current.scrollTo(_path).then(() => {
+                    _path.shift();
+                    if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{opacity: 0}, {opacity: 1}], {duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3})
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        if (diff.pathRight) {
+            if (!rightRefEditor.current) return;
+            try {
+                let _path = parseJSONPath(diff.pathRight);
+                rightRefEditor.current.expand((path) => {
+                    if (!path) return true;
+                    let joined = path.join('.');
+                    let joined_ours = _path.join('.').substring(2);
+                    let equal = joined_ours.startsWith(joined);
+                    return equal;
+                });
+                rightRefEditor.current.scrollTo(_path).then(() => {
+                    _path.shift();
+                    if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{opacity: 0}, {opacity: 1}], {duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3})
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    }
+
     function changeLeftMode(mode: Mode) {
         setLeftMode(mode);
     }
@@ -346,13 +389,18 @@ export default function Compare() {
         setRightMode(mode);
     }
 
-    let currentIndex = 0;
-    if (uniqueDiff.length > 0) {
-        currentIndex = uniqueDiff.findIndex((x) => x.pointer);
-        if (currentIndex < 0) {
-            currentIndex = 0;
-        }
-        currentIndex += 1;
+    function focusOnPreviousDifference() {
+        if (currentDifferenceIndex < 1) return;
+        focusDifference(currentDifferenceIndex - 2);
+        if (currentDifferenceIndex <= 1) return;
+        setCurrentDifferenceIndex(currentDifferenceIndex - 1);
+    }
+
+    function focusOnNextDifference() {
+        if (currentDifferenceIndex > uniqueDiff.length) return;
+        focusDifference(currentDifferenceIndex);
+        if (currentDifferenceIndex >= uniqueDiff.length) return;
+        setCurrentDifferenceIndex(currentDifferenceIndex + 1);
     }
 
     return (
@@ -376,13 +424,13 @@ export default function Compare() {
                     </div>
                     <div className={styles.mid}>
                         <Text>
-                            {currentIndex} / {uniqueDiff.length} Differences
+                            {currentDifferenceIndex} / {uniqueDiff.length} Differences
                         </Text>
-                        <Button.Group disabled alt="These don't work yet" label="These don't work yet" size="xs">
-                            <Button alt="These don't work yet" label="These don't work yet" flat>
+                        <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
+                            <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
                                 <BiSolidDownArrow />
                             </Button>
-                            <Button alt="These don't work yet" label="These don't work yet" flat>
+                            <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
                                 <BiSolidUpArrow />
                             </Button>
                         </Button.Group>
