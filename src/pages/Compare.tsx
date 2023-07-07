@@ -116,12 +116,12 @@ export default function Compare() {
         if (!leftjson) {
             try {
                 leftjson = JSON.parse(left.text);
-            } catch (err) {}
+            } catch (err) { }
         }
         if (!rightjson) {
             try {
                 rightjson = JSON.parse(right.text);
-            } catch (err) {}
+            } catch (err) { }
         }
         if (differenceInterval) {
             clearInterval(differenceInterval);
@@ -130,9 +130,15 @@ export default function Compare() {
         if (leftjson && rightjson) {
             console.log("Finding difference");
             differenceInterval = setInterval(() => {
-                setDifference(difference(leftjson, rightjson));
-                clearInterval(differenceInterval);
-                console.log("Difference found");
+                difference(leftjson, rightjson).then(_diff => {
+                    setDifference(_diff);
+                    if (differenceInterval) clearInterval(differenceInterval);
+                    console.log("Difference found");
+                }).catch(err => {
+                    console.error(err);
+                    console.log("Error finding difference");
+                    setDifference(null);
+                });
             }, 500);
         } else {
             setDifference(null);
@@ -154,27 +160,12 @@ export default function Compare() {
         saveStyleElement(styleElement);
     }
 
-    function highlightPath(path: JSONPath, editorid: string, className: string) {
-        let first = true;
-        let styleRules: string[] = [];
-        let styleElement = getStylesElement(STYLE_ID);
-        // let uniqueDataPaths: string[] = [];
-        // path.forEach((pathItem) => {});
+    async function highlightPath(path: JSONPath, editorid: string, className: string, styleRules: string[]) {
         while (path.length > 0) {
             let datapath = `%2F${path.join("%2F")}`;
-            // if (!uniqueDataPaths.includes(datapath)) {
-            //     uniqueDataPaths.push(datapath);
-            // } else {
-                // path.pop();
-                // first = false;
-                // continue;
-            // }
-            // if (first) {
-                styleRules.push(`
+            styleRules.push(`
                 #${editorid} div[data-path="${datapath}"] {
-                    --background-color-custom: ${
-                        className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"
-                    };
+                    --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
                 }
                 #${editorid} div[data-path="${datapath}"]>div:first-child>div {
                     color: #292D1C !important;
@@ -186,44 +177,33 @@ export default function Compare() {
                     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
                 }
                 `);
-            // } else {
-                // styleRules.push(`
-                // #${editorid} div[data-path="${datapath}"] {
-                //     --background-color-custom: #F6D283;
-                // }
-                // #${editorid} div[data-path="${datapath}"]>div:first-child>div:first-child {
-                //     background-color: var(--background-color-custom) !important;
-                //     --jse-key-color: #292D1C;
-                //     --jse-delimiter-color: #292D1C;
-                //     // color: #292D1C !important;
-                // }
-                // #${editorid} div[data-path="${datapath}"] div {
-                //     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-                // }
-                // `);
-            // }
-            // element.classList.add(first ? className : parentClassName);
-            // first = false;
             path.pop();
         }
-        styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
-        saveStyleElement(styleElement);
     }
 
-    function highlightDifference(sideDiff: JSONDiff, editor: string) {
-        sideDiff.different.forEach((path) => {
-            // console.log(path);
+    async function highlightDifference(sideDiff: JSONDiff, editor: string, returnable: JSONEditor) {
+        let tasks: Promise<void>[] = [];
+        let styleRules: string[] = [];
+        for(let i = 0; i < sideDiff.different.length; i++) {
+            let path = sideDiff.different[i];
             let _path = parseJSONPath(path.substring(2));
-            highlightPath(_path, editor, styles.different);
-        });
-        sideDiff.extra.forEach((path) => {
+            tasks.push(highlightPath(_path, editor, styles.different, styleRules));
+        }
+        for(let i = 0; i < sideDiff.extra.length; i++) {
+            let path = sideDiff.extra[i];
             let _path = parseJSONPath(path.substring(2));
-            highlightPath(_path, editor, styles.extra);
-        });
-        sideDiff.missing.forEach((path) => {
+            tasks.push(highlightPath(_path, editor, styles.extra, styleRules));
+        }
+        for(let i = 0; i < sideDiff.missing.length; i++) {
+            let path = sideDiff.missing[i];
             let _path = parseJSONPath(path.substring(2));
-            highlightPath(_path, editor, styles.missing);
-        });
+            tasks.push(highlightPath(_path, editor, styles.missing, styleRules));
+        }
+        await Promise.all(tasks);
+        let styleElement = getStylesElement(STYLE_ID);
+        styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
+        returnable.refresh();
+        return returnable;
     }
 
     useEffect(() => {
@@ -263,7 +243,7 @@ export default function Compare() {
         setUniqueDiff(uniques);
     }, [differenceObject]);
 
-    function regularHighlightJob() {
+    async function regularHighlightJob() {
         console.log("Running regular highlight job");
         clearPreviousDifference();
         if (!differenceObject) {
@@ -272,22 +252,19 @@ export default function Compare() {
             interval = undefined;
             return;
         }
-        // if (!leftRefEditor.current || !rightRefEditor.current) return;
+        let tasks: Promise<JSONEditor>[] = [];
         if (differenceObject.left && leftRefEditor.current) {
             console.log("highlighting difference left");
-            highlightDifference(differenceObject.left, leftId);
-            leftRefEditor.current.refresh();
-            console.log("highlighted difference left");
+            tasks.push(highlightDifference(differenceObject.left, leftId, leftRefEditor.current));
         }
         if (differenceObject.right && rightRefEditor.current) {
             console.log("highlighting difference right");
-            highlightDifference(differenceObject.right, rightId);
-            rightRefEditor.current.refresh();
-            console.log("highlighted difference right");
+            tasks.push(highlightDifference(differenceObject.right, rightId, rightRefEditor.current));
         }
-        console.log("cleared interval");
+        console.log("cleared regularHighlight interval");
         clearInterval(interval);
         interval = undefined;
+        return Promise.all(tasks);
     }
 
     useEffect(() => {
@@ -320,13 +297,19 @@ export default function Compare() {
         try {
             let data = JSON.parse(cleanJSON(JSON.stringify(json)));
             let sorted = sortObj(data);
-            leftRefEditor.current.set({ json: sorted });
-            onLeftChange({json: sorted}, {json: data}, {contentErrors: null, patchResult: null});
+            // leftRefEditor.current.set({ json: sorted });
+            if (leftMode == Mode.text) {
+                leftRefEditor.current.set({ text: JSON.stringify(sorted) });
+            } else if (leftMode == Mode.tree) {
+                leftRefEditor.current.set({ json: sorted });
+            }
+            onLeftChange({ json: sorted }, { json: data }, { contentErrors: null, patchResult: null });
         } catch (err) {
             console.error(err);
             return;
         }
     }
+
     function sortRight() {
         if (!rightRefEditor.current) return;
         let content = rightRefEditor.current.get();
@@ -343,8 +326,13 @@ export default function Compare() {
         try {
             let data = JSON.parse(cleanJSON(JSON.stringify(json)));
             let sorted = sortObj(data);
-            rightRefEditor.current.set({ json: sorted });
-            onRightChange({json: sorted}, {json: data}, {contentErrors: null, patchResult: null});
+            // rightRefEditor.current.set({ json: sorted });
+            if (rightMode == Mode.text) {
+                rightRefEditor.current.set({ text: JSON.stringify(sorted) });
+            } else if (rightMode == Mode.tree) {
+                rightRefEditor.current.set({ json: sorted });
+            }
+            onRightChange({ json: sorted }, { json: data }, { contentErrors: null, patchResult: null });
         } catch (err) {
             console.error(err);
             return;

@@ -133,7 +133,7 @@ export function normalize(json: any, root = "$") {
     }
 }
 
-export function difference(jsona: any, jsonb: any) {
+export async function difference(jsona: any, jsonb: any) {
     if ((isPlainObject(jsona) || isArray(jsona)) && (isPlainObject(jsonb) || isArray(jsonb))) {
         let diff: Difference = {
             left: {
