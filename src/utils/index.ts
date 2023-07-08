@@ -68,66 +68,124 @@ export function memoized<Callable extends (...args: any) => any>(functionToMemoi
     }
 }
 
-export const memoizedHash = memoized(hashCode, 2);
+export const memoizedHash = memoized(hashCode, 1000);
 
-export function normalizeArray(objects: any[], baseKey = "$") {
+export async function normalizeArray(objects: any[], baseKey = "$") {
     let normalized: { [key: string]: any } = {};
     if (!baseKey.endsWith(".")) {
         baseKey += ".";
     }
-    objects.forEach((object: any, index: number) => {
+    await Promise.all(objects.map(async (object: any, index: number) => {
         if (isPlainObject(object)) {
-            normalized = {
-                ...normalized,
-                ...normalizeObject(object, `${baseKey}[${index}]`),
-            };
+            for (let [key, value] of Object.entries(await normalizeObject(object, `${baseKey}[${index}]`))) {
+                normalized[key] = value;
+            }
+            // normalized = {
+            //     ...normalized,
+            //     ...await normalizeObject(object, `${baseKey}[${index}]`),
+            // };
         } else if (isArray(object)) {
-            normalized = {
-                ...normalized,
-                ...normalizeArray(object, `${baseKey}[${index}]`),
-            };
+            for (let [key, value] of Object.entries(await normalizeArray(object, `${baseKey}[${index}]`))) {
+                normalized[key] = value;
+            }
+            // normalized = {
+            //     ...normalized,
+            //     ...await normalizeArray(object, `${baseKey}[${index}]`),
+            // };
         } else {
+            // normalized.set(`${baseKey}[${index}]`, object);
             normalized[`${baseKey}[${index}]`] = object;
         }
-    });
+    }));
+    // objects.forEach(async (object: any, index: number) => {
+    //     if (isPlainObject(object)) {
+    //         for (let [key, value] of Object.entries(await normalizeObject(object, `${baseKey}[${index}]`))) {
+    //             normalized[key] = value;
+    //         }
+    //         // normalized = {
+    //         //     ...normalized,
+    //         //     ...await normalizeObject(object, `${baseKey}[${index}]`),
+    //         // };
+    //     } else if (isArray(object)) {
+    //         for (let [key, value] of Object.entries(await normalizeArray(object, `${baseKey}[${index}]`))) {
+    //             normalized[key] = value;
+    //         }
+    //         // normalized = {
+    //         //     ...normalized,
+    //         //     ...await normalizeArray(object, `${baseKey}[${index}]`),
+    //         // };
+    //     } else {
+    //         // normalized.set(`${baseKey}[${index}]`, object);
+    //         normalized[`${baseKey}[${index}]`] = object;
+    //     }
+    // });
     return normalized;
 }
-export function normalizeObject(object: any, baseKey = "$") {
+export async function normalizeObject(object: any, baseKey = "$") {
     let normalized: { [key: string]: any } = {};
     if (!baseKey.endsWith(".")) {
         baseKey += ".";
     }
-    Object.keys(object).forEach((key: string) => {
+    await Promise.all(Object.keys(object).map(async (key: string) => {
         let newkey = key.replace("'", "\\'").replace('"', '\\"');
         if (newkey.includes(".")) {
             newkey = `"${newkey}"`;
         }
         if (isPlainObject(object[key])) {
-            let norchild = normalizeObject(object[key], `${baseKey}${newkey}`);
-            normalized = {
-                ...normalized,
-                ...norchild
-            };
-            normalized[`${baseKey}${newkey}`] = memoizedHash(JSON.stringify(norchild));
+            let norchild = await normalizeObject(object[key], `${baseKey}${newkey}`);
+            for (let [key, value] of Object.entries(norchild)) {
+                normalized[key] = value;
+            }
+            // normalized = {
+            //     ...normalized,
+            //     ...norchild
+            // };
+            // normalized[`${baseKey}${newkey}`] = memoizedHash(JSON.stringify(norchild));
         } else if (isArray(object[key])) {
-            let norchild = normalizeArray(object[key], `${baseKey}${newkey}`);
-            normalized = {
-                ...normalized,
-                ...norchild,
-            };
-            normalized[`${baseKey}${newkey}`] = memoizedHash(JSON.stringify(norchild));
+            let norchild = await normalizeArray(object[key], `${baseKey}${newkey}`);
+            for (let [key, value] of Object.entries(norchild)) {
+                normalized[key] = value;
+            }
+            // normalized = {
+            //     ...normalized,
+            //     ...norchild,
+            // };
+            // normalized[`${baseKey}${newkey}`] = memoizedHash(JSON.stringify(norchild));
         } else {
             normalized[`${baseKey}${newkey}`] = object[key];
         }
-    });
+    }));
+    // Object.keys(object).forEach((key: string) => {
+    //     let newkey = key.replace("'", "\\'").replace('"', '\\"');
+    //     if (newkey.includes(".")) {
+    //         newkey = `"${newkey}"`;
+    //     }
+    //     if (isPlainObject(object[key])) {
+    //         let norchild = normalizeObject(object[key], `${baseKey}${newkey}`);
+    //         normalized = {
+    //             ...normalized,
+    //             ...norchild
+    //         };
+    //         normalized[`${baseKey}${newkey}`] = memoizedHash(JSON.stringify(norchild));
+    //     } else if (isArray(object[key])) {
+    //         let norchild = normalizeArray(object[key], `${baseKey}${newkey}`);
+    //         normalized = {
+    //             ...normalized,
+    //             ...norchild,
+    //         };
+    //         normalized[`${baseKey}${newkey}`] = memoizedHash(JSON.stringify(norchild));
+    //     } else {
+    //         normalized[`${baseKey}${newkey}`] = object[key];
+    //     }
+    // });
     return normalized;
 }
 
-export function normalize(json: any, root = "$") {
+export async function normalize(json: any, root = "$") {
     if (isArray(json)) {
-        return normalizeArray(json, root);
+        return await normalizeArray(json, root);
     } else if (isPlainObject(json)) {
-        return normalizeObject(json, root);
+        return await normalizeObject(json, root);
     } else {
         return json;
     }
@@ -147,10 +205,14 @@ export async function difference(jsona: any, jsonb: any) {
                 missing: []
             },
         };
-        let normalizedA = normalize(jsona);
-        let normalizedB = normalize(jsonb);
-        console.log(normalizedA, normalizedB);
-        Object.keys(normalizedA).forEach((key: string) => {
+        let tasks: Promise<any>[] = [normalize(jsona), normalize(jsonb)];
+        // let normalizedA = normalize(jsona);
+        // let normalizedB = normalize(jsonb);
+        let [normalizedA, normalizedB] = await Promise.all(tasks);
+        tasks = [];
+        console.log('Normalized');
+        // console.log(normalizedA, normalizedB);
+        tasks = [...Object.keys(normalizedA).map(async (key: string) => {
             let keyinb = key in normalizedB;
             if (keyinb) {
                 if (normalizedA[key] !== normalizedB[key]) {
@@ -159,8 +221,18 @@ export async function difference(jsona: any, jsonb: any) {
             } else {
                 diff.left.missing.push(key);
             }
-        });
-        Object.keys(normalizedB).forEach((key: string) => {
+        })];
+        // Object.keys(normalizedA).forEach((key: string) => {
+        //     let keyinb = key in normalizedB;
+        //     if (keyinb) {
+        //         if (normalizedA[key] !== normalizedB[key]) {
+        //             diff.left.different.push(key);
+        //         }
+        //     } else {
+        //         diff.left.missing.push(key);
+        //     }
+        // });
+        tasks = tasks.concat([...Object.keys(normalizedB).map(async (key: string) => {
             let keyina = key in normalizedA;
             if (keyina) {
                 if (normalizedA[key] !== normalizedB[key]) {
@@ -169,7 +241,18 @@ export async function difference(jsona: any, jsonb: any) {
             } else {
                 diff.right.extra.push(key);
             }
-        });
+        })]);
+        await Promise.all(tasks);
+        // Object.keys(normalizedB).forEach((key: string) => {
+        //     let keyina = key in normalizedA;
+        //     if (keyina) {
+        //         if (normalizedA[key] !== normalizedB[key]) {
+        //             diff.right.different.push(key);
+        //         }
+        //     } else {
+        //         diff.right.extra.push(key);
+        //     }
+        // });
         return diff;
     } else {
         return null;

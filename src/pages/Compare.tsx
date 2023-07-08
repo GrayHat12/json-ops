@@ -12,6 +12,7 @@ import { JSONDiff, Difference, difference } from "../utils";
 
 let interval: number | undefined = undefined;
 let differenceInterval: number | undefined = undefined;
+let uniqueDiffInterval: number | undefined = undefined;
 
 function getStylesElement(id: string) {
     let styleElement = document.getElementById(id);
@@ -36,11 +37,12 @@ const STYLE_ID = "jsoneditor-styles-custom";
 export default function Compare() {
     const [title, setTitle] = useState<string>("");
     const [assignedId, setAssignedId] = useState<number>();
-    const [uniqueDiff, setUniqueDiff] = useState<{ pathLeft?: string; pathRight?: string}[]>([]);
+    const [uniqueDiff, setUniqueDiff] = useState<{ pathLeft?: string; pathRight?: string }[]>([]);
     const [differenceObject, setDifference] = useState<Difference | null>(null);
     const [leftMode, setLeftMode] = useState<Mode>(Mode.tree);
     const [rightMode, setRightMode] = useState<Mode>(Mode.tree);
     const [currentDifferenceIndex, setCurrentDifferenceIndex] = useState<number>(0);
+    const [loadingState, setLoadingState] = useState<boolean>(false);
 
     const leftRefEditor = useRef<JSONEditor>();
     const rightRefEditor = useRef<JSONEditor>();
@@ -130,6 +132,7 @@ export default function Compare() {
         }
         if (leftjson && rightjson) {
             console.log("Finding difference");
+            // setLoadingState(true);
             differenceInterval = setInterval(() => {
                 difference(leftjson, rightjson).then(_diff => {
                     setDifference(_diff);
@@ -139,6 +142,8 @@ export default function Compare() {
                     console.error(err);
                     console.log("Error finding difference");
                     setDifference(null);
+                }).finally(() => {
+                    // setLoadingState(false);
                 });
             }, 500);
         } else {
@@ -161,10 +166,11 @@ export default function Compare() {
         saveStyleElement(styleElement);
     }
 
-    async function highlightPath(path: JSONPath, editorid: string, className: string, styleRules: string[]) {
-        while (path.length > 0) {
-            let datapath = `%2F${path.join("%2F")}`;
-            styleRules.push(`
+    function highlightPath(path: JSONPath, editorid: string, className: string) {
+        // let styleRules: string[] = [];
+        let fn = async (p: JSONPath) => {
+            let datapath = `%2F${p.join("%2F")}`;
+            return `
                 #${editorid} div[data-path="${datapath}"] {
                     --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
                 }
@@ -177,69 +183,102 @@ export default function Compare() {
                     color: #292D1C !important;
                     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
                 }
-                `);
+                `;
+        };
+        let styleRules: Promise<string>[] = [];
+        while (path.length > 0) {
+            styleRules.push(fn(path));
             path.pop();
         }
+        return Promise.all(styleRules);
     }
 
     async function highlightDifference(sideDiff: JSONDiff, editor: string, returnable: JSONEditor) {
-        let tasks: Promise<void>[] = [];
-        let styleRules: string[] = [];
-        for(let i = 0; i < sideDiff.different.length; i++) {
+        let tasks: Promise<string[]>[] = [];
+        // let styleRules: string[] = [];
+        for (let i = 0; i < sideDiff.different.length; i++) {
             let path = sideDiff.different[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.different, styleRules));
+            tasks.push(highlightPath(_path, editor, styles.different));
         }
-        for(let i = 0; i < sideDiff.extra.length; i++) {
+        for (let i = 0; i < sideDiff.extra.length; i++) {
             let path = sideDiff.extra[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.extra, styleRules));
+            tasks.push(highlightPath(_path, editor, styles.extra));
         }
-        for(let i = 0; i < sideDiff.missing.length; i++) {
+        for (let i = 0; i < sideDiff.missing.length; i++) {
             let path = sideDiff.missing[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.missing, styleRules));
+            tasks.push(highlightPath(_path, editor, styles.missing));
         }
-        await Promise.all(tasks);
-        let styleElement = getStylesElement(STYLE_ID);
-        styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
-        returnable.refresh();
-        return returnable;
+        let styleRules = (await Promise.all(tasks)).flat();
+        // let styleElement = getStylesElement(STYLE_ID);
+        // console.log('styleRules', styleRules.length, styleRules[0]);
+        // styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
+        // returnable.refresh();
+        return { styleRules, returnable };
     }
 
     useEffect(() => {
+        // console.log("Running useEffect");
         if (interval) clearInterval(interval);
-        interval = setInterval(regularHighlightJob, 10);
+        interval = setInterval(regularHighlightJob, 100);
         return () => {
             if (interval) clearInterval(interval);
         };
     }, [differenceObject]);
+
+    async function uniqueDifferenceFunction() {
+        let left = differenceObject.left;
+        let right = differenceObject.right;
+        let uniques: { pathLeft?: string; pathRight?: string; }[] = [];
+        let tasks: Promise<void>[] = [];
+        tasks = [...tasks, ...left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).map(async (path) => {
+            if (right.different.includes(path)) {
+                uniques.push({ pathLeft: path, pathRight: path });
+            }
+        })];
+        // left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
+        //     if (right.different.includes(path)) {
+        //         uniques.push({ pathLeft: path, pathRight: path });
+        //     }
+        // });
+        tasks = [...tasks, ...left.extra.map(async (path) => {
+            if (!right.extra.includes(path)) {
+                uniques.push({ pathLeft: path });
+            }
+        })];
+        // left.extra.forEach((path) => {
+        //     if (!right.extra.includes(path)) {
+        //         uniques.push({ pathLeft: path });
+        //     }
+        // });
+        tasks = [...tasks, ...right.extra.map(async (path) => {
+            if (!left.extra.includes(path)) {
+                uniques.push({ pathRight: path });
+            }
+        })];
+        // right.extra.forEach((path) => {
+        //     if (!left.extra.includes(path)) {
+        //         uniques.push({ pathRight: path });
+        //     }
+        // });
+        setUniqueDiff(uniques);
+        setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+    }
 
     useEffect(() => {
         if (!differenceObject) {
             setUniqueDiff([]);
             return;
         }
-        let left = differenceObject.left;
-        let right = differenceObject.right;
-        let uniques: { pathLeft?: string; pathRight?: string;}[] = [];
-        left.different.filter((x, index) => !left.different.find((y,_index) => y.startsWith(x) && index != _index)).forEach((path) => {
-            if (right.different.includes(path)) {
-                uniques.push({ pathLeft: path, pathRight: path});
-            }
-        });
-        left.extra.forEach((path) => {
-            if (!right.extra.includes(path)) {
-                uniques.push({ pathLeft: path});
-            }
-        });
-        right.extra.forEach((path) => {
-            if (!left.extra.includes(path)) {
-                uniques.push({ pathRight: path});
-            }
-        });
-        setUniqueDiff(uniques);
-        setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+        if (uniqueDiffInterval) clearInterval(uniqueDiffInterval);
+        interval = setInterval(() => {
+            uniqueDifferenceFunction().then(console.log).catch(console.error);
+        }, 20);
+        return () => {
+            if (uniqueDiffInterval) clearInterval(uniqueDiffInterval);
+        };
     }, [differenceObject]);
 
     async function regularHighlightJob() {
@@ -251,7 +290,7 @@ export default function Compare() {
             interval = undefined;
             return;
         }
-        let tasks: Promise<JSONEditor>[] = [];
+        let tasks: Promise<{ styleRules: string[], returnable: JSONEditor }>[] = [];
         if (differenceObject.left && leftRefEditor.current) {
             console.log("highlighting difference left");
             tasks.push(highlightDifference(differenceObject.left, leftId, leftRefEditor.current));
@@ -260,10 +299,22 @@ export default function Compare() {
             console.log("highlighting difference right");
             tasks.push(highlightDifference(differenceObject.right, rightId, rightRefEditor.current));
         }
-        console.log("cleared regularHighlight interval");
+        try {
+            let styleElement = getStylesElement(STYLE_ID);
+            let returns = await Promise.all(tasks);
+            let styleRules = returns.map((x) => x.styleRules).flat();
+            let returnables = returns.map((x) => x.returnable);
+            console.log('styleRules', styleRules.length, styleRules[0]);
+            console.log('returnables', returnables);
+            styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
+            returnables.forEach((x) => x.refresh());
+        } catch (e) {
+            console.error(e);
+        }
+        console.log("cleared regularHighlight interval", interval);
         clearInterval(interval);
         interval = undefined;
-        return Promise.all(tasks);
+        // return Promise.all(tasks);
     }
 
     useEffect(() => {
@@ -355,7 +406,7 @@ export default function Compare() {
                 });
                 leftRefEditor.current.scrollTo(_path).then(() => {
                     _path.shift();
-                    if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{opacity: 0}, {opacity: 1}], {duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3})
+                    if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
                 });
             } catch (err) {
                 console.error(err);
@@ -374,7 +425,7 @@ export default function Compare() {
                 });
                 rightRefEditor.current.scrollTo(_path).then(() => {
                     _path.shift();
-                    if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{opacity: 0}, {opacity: 1}], {duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3})
+                    if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
                 });
             } catch (err) {
                 console.error(err);
@@ -408,47 +459,50 @@ export default function Compare() {
             {loading ? (
                 <Loading />
             ) : (
-                <div className={styles.grid}>
-                    <div id={leftId} className={styles.col}>
-                        <JSONPane
-                            sortData={sortLeft}
-                            mode={leftMode}
-                            jsonRefEditor={leftRefEditor}
-                            onChangeMode={changeLeftMode}
-                            childProps={{
-                                mode: leftMode,
-                                onChange: onLeftChange,
-                            }}
-                            bindingsTitle={bindingsLeftTitle}
-                        ></JSONPane>
+                <>
+                    <div className={styles.grid}>
+                        <div id={leftId} className={styles.col}>
+                            <JSONPane
+                                sortData={sortLeft}
+                                mode={leftMode}
+                                jsonRefEditor={leftRefEditor}
+                                onChangeMode={changeLeftMode}
+                                childProps={{
+                                    mode: leftMode,
+                                    onChange: onLeftChange,
+                                }}
+                                bindingsTitle={bindingsLeftTitle}
+                            ></JSONPane>
+                        </div>
+                        <div className={styles.mid}>
+                            <Text>
+                                {currentDifferenceIndex} / {uniqueDiff.length} Differences
+                            </Text>
+                            <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
+                                <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
+                                    <BiSolidDownArrow />
+                                </Button>
+                                <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
+                                    <BiSolidUpArrow />
+                                </Button>
+                            </Button.Group>
+                        </div>
+                        <div id={rightId} className={styles.col}>
+                            <JSONPane
+                                sortData={sortRight}
+                                mode={rightMode}
+                                jsonRefEditor={rightRefEditor}
+                                bindingsTitle={bindingsRightTitle}
+                                onChangeMode={changeRightMode}
+                                childProps={{
+                                    mode: rightMode,
+                                    onChange: onRightChange,
+                                }}
+                            ></JSONPane>
+                        </div>
                     </div>
-                    <div className={styles.mid}>
-                        <Text>
-                            {currentDifferenceIndex} / {uniqueDiff.length} Differences
-                        </Text>
-                        <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
-                            <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
-                                <BiSolidDownArrow />
-                            </Button>
-                            <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
-                                <BiSolidUpArrow />
-                            </Button>
-                        </Button.Group>
-                    </div>
-                    <div id={rightId} className={styles.col}>
-                        <JSONPane
-                            sortData={sortRight}
-                            mode={rightMode}
-                            jsonRefEditor={rightRefEditor}
-                            bindingsTitle={bindingsRightTitle}
-                            onChangeMode={changeRightMode}
-                            childProps={{
-                                mode: rightMode,
-                                onChange: onRightChange,
-                            }}
-                        ></JSONPane>
-                    </div>
-                </div>
+                    {loadingState && <Loading css={{ position: "absolute", width: "100vw", height: "100vh" }} />}
+                </>
             )}
         </Container>
     );
