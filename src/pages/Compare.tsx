@@ -10,9 +10,9 @@ import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
 
-let interval: number | undefined = undefined;
-let differenceInterval: number | undefined = undefined;
-let uniqueDiffInterval: number | undefined = undefined;
+let highlightJobInterval: number | undefined = undefined;
+let differencerInterval: number | undefined = undefined;
+let uniqueDifferenceInterval: number | undefined = undefined;
 
 function getStylesElement(id: string) {
     let styleElement = document.getElementById(id);
@@ -126,17 +126,16 @@ export default function Compare() {
                 rightjson = JSON.parse(right.text);
             } catch (err) { }
         }
-        if (differenceInterval) {
-            clearInterval(differenceInterval);
-            differenceInterval = undefined;
+        if (differencerInterval) {
+            clearInterval(differencerInterval);
+            differencerInterval = undefined;
         }
         if (leftjson && rightjson) {
             console.log("Finding difference");
             // setLoadingState(true);
-            differenceInterval = setInterval(() => {
+            differencerInterval = setInterval(() => {
                 difference(leftjson, rightjson).then(_diff => {
                     setDifference(_diff);
-                    if (differenceInterval) clearInterval(differenceInterval);
                     console.log("Difference found");
                 }).catch(err => {
                     console.error(err);
@@ -144,6 +143,7 @@ export default function Compare() {
                     setDifference(null);
                 }).finally(() => {
                     // setLoadingState(false);
+                    if (differencerInterval) clearInterval(differencerInterval);
                 });
             }, 500);
         } else {
@@ -221,10 +221,10 @@ export default function Compare() {
 
     useEffect(() => {
         // console.log("Running useEffect");
-        if (interval) clearInterval(interval);
-        interval = setInterval(regularHighlightJob, 100);
+        if (highlightJobInterval) clearInterval(highlightJobInterval);
+        highlightJobInterval = setInterval(regularHighlightJob, 100);
         return () => {
-            if (interval) clearInterval(interval);
+            if (highlightJobInterval) clearInterval(highlightJobInterval);
         };
     }, [differenceObject]);
 
@@ -263,6 +263,9 @@ export default function Compare() {
         //         uniques.push({ pathRight: path });
         //     }
         // });
+        await Promise.all(tasks);
+        if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+        uniqueDifferenceInterval = undefined;
         setUniqueDiff(uniques);
         setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
     }
@@ -272,12 +275,10 @@ export default function Compare() {
             setUniqueDiff([]);
             return;
         }
-        if (uniqueDiffInterval) clearInterval(uniqueDiffInterval);
-        interval = setInterval(() => {
-            uniqueDifferenceFunction().then(console.log).catch(console.error);
-        }, 20);
+        if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+        uniqueDifferenceInterval = setInterval(uniqueDifferenceFunction, 20);
         return () => {
-            if (uniqueDiffInterval) clearInterval(uniqueDiffInterval);
+            if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
         };
     }, [differenceObject]);
 
@@ -286,8 +287,8 @@ export default function Compare() {
         clearPreviousDifference();
         if (!differenceObject) {
             console.log("cleared interval");
-            clearInterval(interval);
-            interval = undefined;
+            clearInterval(highlightJobInterval);
+            highlightJobInterval = undefined;
             return;
         }
         let tasks: Promise<{ styleRules: string[], returnable: JSONEditor }>[] = [];
@@ -306,14 +307,19 @@ export default function Compare() {
             let returnables = returns.map((x) => x.returnable);
             console.log('styleRules', styleRules.length, styleRules[0]);
             console.log('returnables', returnables);
-            styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
+            let final_style = "";
+            for (let i = 0; i < styleRules.length; i++) {
+                let styleRule = styleRules[i];
+                final_style += "\n" + styleRule;
+            }
+            styleElement.innerHTML = styleElement.innerHTML + "\n" + final_style;
             returnables.forEach((x) => x.refresh());
         } catch (e) {
             console.error(e);
         }
-        console.log("cleared regularHighlight interval", interval);
-        clearInterval(interval);
-        interval = undefined;
+        console.log("cleared regularHighlight interval", highlightJobInterval);
+        clearInterval(highlightJobInterval);
+        highlightJobInterval = undefined;
         // return Promise.all(tasks);
     }
 
