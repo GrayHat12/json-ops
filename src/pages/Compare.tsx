@@ -9,6 +9,8 @@ import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
+import * as utils from "../utils";
+import { useWorker, WORKER_STATUS } from "../worker";
 
 let highlightJobInterval: number | undefined = undefined;
 let differencerInterval: number | undefined = undefined;
@@ -32,6 +34,51 @@ function saveStyleElement(element: HTMLElement) {
     }
 }
 
+function uniqueDifferenceFunction(differenceObject: Difference) {
+    let left = differenceObject.left;
+    let right = differenceObject.right;
+    let uniques: { pathLeft?: string; pathRight?: string; }[] = [];
+    // let tasks: Promise<void>[] = [];
+    // console.log("Finding unique difference", left, right);
+    // let a = left.different.filter(async (x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index));
+    // tasks = [...tasks, ...left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).map(async (path) => {
+    //     if (right.different.includes(path)) {
+    //         uniques.push({ pathLeft: path, pathRight: path });
+    //     }
+    // })];
+    left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
+        if (right.different.includes(path)) {
+            uniques.push({ pathLeft: path, pathRight: path });
+        }
+    });
+    // tasks = [...tasks, ...left.extra.map(async (path) => {
+    //     if (!right.extra.includes(path)) {
+    //         uniques.push({ pathLeft: path });
+    //     }
+    // })];
+    left.extra.forEach((path) => {
+        if (!right.extra.includes(path)) {
+            uniques.push({ pathLeft: path });
+        }
+    });
+    // tasks = [...tasks, ...right.extra.map(async (path) => {
+    //     if (!left.extra.includes(path)) {
+    //         uniques.push({ pathRight: path });
+    //     }
+    // })];
+    right.extra.forEach((path) => {
+        if (!left.extra.includes(path)) {
+            uniques.push({ pathRight: path });
+        }
+    });
+    // await Promise.all(tasks);
+    // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+    uniqueDifferenceInterval = undefined;
+    // setUniqueDiff(uniques);
+    // setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+    return { uniques, index: uniques.length === 0 ? 0 : 1 };
+}
+
 const STYLE_ID = "jsoneditor-styles-custom";
 
 export default function Compare() {
@@ -43,6 +90,12 @@ export default function Compare() {
     const [rightMode, setRightMode] = useState<Mode>(Mode.tree);
     const [currentDifferenceIndex, setCurrentDifferenceIndex] = useState<number>(0);
     const [loadingState, setLoadingState] = useState<boolean>(false);
+    const [uniqueDifferenceWorker, { status: differenceWorkerStatus, kill: killDifferenceWorker }] = useWorker(uniqueDifferenceFunction);
+    const [differenceFinderWorker, { status: differenceFinderWorkerStatus, kill: killDifferenceFinderWorker }] = useWorker(difference, {
+        localDependencies() {
+            return { ...utils, cache: {} }
+        },
+    });
 
     const leftRefEditor = useRef<JSONEditor>();
     const rightRefEditor = useRef<JSONEditor>();
@@ -107,6 +160,32 @@ export default function Compare() {
             });
     }, [id]);
 
+    function differenceFinderRunner(leftjson: any, rightjson: any) {
+        console.log('Running difference finder function runner', differenceFinderWorkerStatus);
+        if (differenceFinderWorkerStatus === WORKER_STATUS.RUNNING) {
+            console.log('Killing previous difference finder worker');
+        }
+        killDifferenceFinderWorker();
+        if (leftjson && rightjson) {
+            console.log("Finding difference");
+            // setLoadingState(true);
+            console.log('Starting difference finder worker');
+            differenceFinderWorker(leftjson, rightjson).then(_diff => {
+                setDifference(_diff);
+                console.log("Difference found");
+            }).catch(err => {
+                console.error(err);
+                console.log("Error finding difference");
+                setDifference(null);
+            }).finally(() => {
+                // setLoadingState(false);
+                if (differencerInterval) clearInterval(differencerInterval);
+            });
+        } else {
+            setDifference(null);
+        }
+    }
+
     function onChange() {
         console.log("Running onChange");
         if (!leftRefEditor.current || !rightRefEditor.current) {
@@ -130,25 +209,7 @@ export default function Compare() {
             clearInterval(differencerInterval);
             differencerInterval = undefined;
         }
-        if (leftjson && rightjson) {
-            console.log("Finding difference");
-            // setLoadingState(true);
-            differencerInterval = setInterval(() => {
-                difference(leftjson, rightjson).then(_diff => {
-                    setDifference(_diff);
-                    console.log("Difference found");
-                }).catch(err => {
-                    console.error(err);
-                    console.log("Error finding difference");
-                    setDifference(null);
-                }).finally(() => {
-                    // setLoadingState(false);
-                    if (differencerInterval) clearInterval(differencerInterval);
-                });
-            }, 500);
-        } else {
-            setDifference(null);
-        }
+        differenceFinderRunner(leftjson, rightjson);
     }
 
     function onLeftChange(content: Content, previousContent: Content, status: OnChangeStatus) {
@@ -166,11 +227,18 @@ export default function Compare() {
         saveStyleElement(styleElement);
     }
 
-    function highlightPath(path: JSONPath, editorid: string, className: string) {
+    function highlightPath(path: JSONPath, editorid: string, className: string, editor: JSONEditor, styleElement: HTMLStyleElement) {
         // let styleRules: string[] = [];
         let fn = async (p: JSONPath) => {
             let datapath = `%2F${p.join("%2F")}`;
-            return `
+            // try {
+            //     let element = editor.findElement(path.slice(1));
+            //     element.classList.add(className);
+            // } catch (err) {
+            //     console.error(err);
+            //     console.log("Error highlighting path", path);
+            // }
+            let style = `
                 #${editorid} div[data-path="${datapath}"] {
                     --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
                 }
@@ -184,6 +252,8 @@ export default function Compare() {
                     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
                 }
                 `;
+            styleElement.innerHTML += style;
+            return style;
         };
         let styleRules: Promise<string>[] = [];
         while (path.length > 0) {
@@ -193,23 +263,23 @@ export default function Compare() {
         return Promise.all(styleRules);
     }
 
-    async function highlightDifference(sideDiff: JSONDiff, editor: string, returnable: JSONEditor) {
+    async function highlightDifference(sideDiff: JSONDiff, editor: string, returnable: JSONEditor, styleElement: HTMLStyleElement) {
         let tasks: Promise<string[]>[] = [];
         // let styleRules: string[] = [];
         for (let i = 0; i < sideDiff.different.length; i++) {
             let path = sideDiff.different[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.different));
+            tasks.push(highlightPath(_path, editor, styles.different, returnable, styleElement));
         }
         for (let i = 0; i < sideDiff.extra.length; i++) {
             let path = sideDiff.extra[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.extra));
+            tasks.push(highlightPath(_path, editor, styles.extra, returnable, styleElement));
         }
         for (let i = 0; i < sideDiff.missing.length; i++) {
             let path = sideDiff.missing[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.missing));
+            tasks.push(highlightPath(_path, editor, styles.missing, returnable, styleElement));
         }
         let styleRules = (await Promise.all(tasks)).flat();
         // let styleElement = getStylesElement(STYLE_ID);
@@ -228,46 +298,20 @@ export default function Compare() {
         };
     }, [differenceObject]);
 
-    async function uniqueDifferenceFunction() {
-        let left = differenceObject.left;
-        let right = differenceObject.right;
-        let uniques: { pathLeft?: string; pathRight?: string; }[] = [];
-        let tasks: Promise<void>[] = [];
-        tasks = [...tasks, ...left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).map(async (path) => {
-            if (right.different.includes(path)) {
-                uniques.push({ pathLeft: path, pathRight: path });
-            }
-        })];
-        // left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
-        //     if (right.different.includes(path)) {
-        //         uniques.push({ pathLeft: path, pathRight: path });
-        //     }
-        // });
-        tasks = [...tasks, ...left.extra.map(async (path) => {
-            if (!right.extra.includes(path)) {
-                uniques.push({ pathLeft: path });
-            }
-        })];
-        // left.extra.forEach((path) => {
-        //     if (!right.extra.includes(path)) {
-        //         uniques.push({ pathLeft: path });
-        //     }
-        // });
-        tasks = [...tasks, ...right.extra.map(async (path) => {
-            if (!left.extra.includes(path)) {
-                uniques.push({ pathRight: path });
-            }
-        })];
-        // right.extra.forEach((path) => {
-        //     if (!left.extra.includes(path)) {
-        //         uniques.push({ pathRight: path });
-        //     }
-        // });
-        await Promise.all(tasks);
-        if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
-        uniqueDifferenceInterval = undefined;
-        setUniqueDiff(uniques);
-        setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+    function uniqueDifferenceFunctionRunner() {
+        console.log('Running unique difference function runner', differenceWorkerStatus);
+        if (differenceWorkerStatus === WORKER_STATUS.RUNNING) {
+            console.log('Killing previous difference worker');
+
+        }
+        killDifferenceWorker();
+        console.log('Starting unique difference worker');
+        uniqueDifferenceWorker(differenceObject).then(result => {
+            setUniqueDiff(result.uniques);
+            setCurrentDifferenceIndex(result.index);
+        }).catch(console.error).finally(() => {
+            if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+        });
     }
 
     useEffect(() => {
@@ -275,15 +319,23 @@ export default function Compare() {
             setUniqueDiff([]);
             return;
         }
-        if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
-        uniqueDifferenceInterval = setInterval(uniqueDifferenceFunction, 20);
+        if (uniqueDifferenceInterval) {
+            clearInterval(uniqueDifferenceInterval);
+        }
+        uniqueDifferenceInterval = setInterval(uniqueDifferenceFunctionRunner, 20);
         return () => {
             if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
         };
     }, [differenceObject]);
 
+    useEffect(() => {
+        killDifferenceWorker();
+        killDifferenceFinderWorker();
+    }, [killDifferenceFinderWorker, killDifferenceWorker]);
+
     async function regularHighlightJob() {
         console.log("Running regular highlight job");
+        let styleElement = document.createElement('style');
         clearPreviousDifference();
         if (!differenceObject) {
             console.log("cleared interval");
@@ -294,25 +346,29 @@ export default function Compare() {
         let tasks: Promise<{ styleRules: string[], returnable: JSONEditor }>[] = [];
         if (differenceObject.left && leftRefEditor.current) {
             console.log("highlighting difference left");
-            tasks.push(highlightDifference(differenceObject.left, leftId, leftRefEditor.current));
+            tasks.push(highlightDifference(differenceObject.left, leftId, leftRefEditor.current, styleElement));
         }
         if (differenceObject.right && rightRefEditor.current) {
             console.log("highlighting difference right");
-            tasks.push(highlightDifference(differenceObject.right, rightId, rightRefEditor.current));
+            tasks.push(highlightDifference(differenceObject.right, rightId, rightRefEditor.current, styleElement));
         }
         try {
-            let styleElement = getStylesElement(STYLE_ID);
+            styleElement.id = STYLE_ID;
             let returns = await Promise.all(tasks);
-            let styleRules = returns.map((x) => x.styleRules).flat();
+            // let styleRules = returns.map((x) => x.styleRules).flat();
             let returnables = returns.map((x) => x.returnable);
-            console.log('styleRules', styleRules.length, styleRules[0]);
-            console.log('returnables', returnables);
-            let final_style = "";
-            for (let i = 0; i < styleRules.length; i++) {
-                let styleRule = styleRules[i];
-                final_style += "\n" + styleRule;
-            }
-            styleElement.innerHTML = styleElement.innerHTML + "\n" + final_style;
+            // console.log('styleRules', styleRules.length, styleRules[0]);
+            // console.log('returnables', returnables);
+            // let final_style = "";
+            // await Promise.all(styleRules.map(async (styleRule) => {
+            //     styleElement.innerHTML += "\n" + styleRule;
+            // }));
+            // for (let i = 0; i < styleRules.length; i++) {
+            //     let styleRule = styleRules[i];
+            //     styleElement.innerHTML += "\n" + styleRule;
+            // }
+            // styleElement.innerHTML = styleElement.innerHTML + "\n" + final_style;
+            saveStyleElement(styleElement);
             returnables.forEach((x) => x.refresh());
         } catch (e) {
             console.error(e);
@@ -399,21 +455,25 @@ export default function Compare() {
         if (uniqueDiff.length < index) return;
         let diff = uniqueDiff[index];
         if (!diff) return;
+        console.log("focusing difference", diff);
         if (diff.pathLeft) {
             if (!leftRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathLeft);
-                leftRefEditor.current.expand((path) => {
-                    if (!path) return true;
-                    let joined = path.join('.');
-                    let joined_ours = _path.join('.').substring(2);
-                    let equal = joined_ours.startsWith(joined);
-                    return equal;
-                });
-                leftRefEditor.current.scrollTo(_path).then(() => {
-                    _path.shift();
-                    if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
-                });
+                leftRefEditor.current.focus().then(() => {
+                    leftRefEditor.current.expand((path) => {
+                        if (!path) return true;
+                        let joined = path.join('.');
+                        let joined_ours = _path.join('.').substring(2);
+                        let equal = joined_ours.startsWith(joined);
+                        return equal;
+                    });
+                    // console.log('scrolling', _path);
+                    leftRefEditor.current.scrollTo(_path).then(() => {
+                        _path.shift();
+                        if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
+                    });
+                }).catch(console.error);
             } catch (err) {
                 console.error(err);
             }
@@ -422,17 +482,20 @@ export default function Compare() {
             if (!rightRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathRight);
-                rightRefEditor.current.expand((path) => {
-                    if (!path) return true;
-                    let joined = path.join('.');
-                    let joined_ours = _path.join('.').substring(2);
-                    let equal = joined_ours.startsWith(joined);
-                    return equal;
-                });
-                rightRefEditor.current.scrollTo(_path).then(() => {
-                    _path.shift();
-                    if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
-                });
+                rightRefEditor.current.focus().then(() => {
+                    rightRefEditor.current.expand((path) => {
+                        if (!path) return true;
+                        let joined = path.join('.');
+                        let joined_ours = _path.join('.').substring(2);
+                        let equal = joined_ours.startsWith(joined);
+                        return equal;
+                    });
+                    // console.log('scrolling to', _path);
+                    rightRefEditor.current.scrollTo(_path).then(() => {
+                        _path.shift();
+                        if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
+                    }).catch(console.error);
+                }).catch(console.error);
             } catch (err) {
                 console.error(err);
             }
