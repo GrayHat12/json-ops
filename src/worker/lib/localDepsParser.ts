@@ -10,11 +10,12 @@ const localDepsParser = (deps: () => { [key: symbol]: unknown }): string => {
             script += `const ${key} = ${JSON.stringify(value)};\n`;
         } else if (typeof value === "function") {
             // console.log('got', value.name, value);
-            if (value.name != key) {
-                script += `const ${key} = ${value};\n`;
-            } else {
+            // Commented the if block below because it was causing issues when code was minified
+            // if (value.name != key) {
+            //     script += `const ${key} = ${value};\n`;
+            // } else {
                 script += `${value.toString()};\n`;
-            }
+            // }
         } else {
             script += `const ${key} = ${value.toString()};\n`;
         }
