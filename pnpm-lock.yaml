@@ -16,7 +16,7 @@ dependencies:
     version: 0.2.4
   jsonabc:
     specifier: github:GrayHat12/jsonabc
-    version: github.com/GrayHat12/jsonabc/d0032f5bd355e75f167dcfc89ef29a2da098ebf1
+    version: git@github.com+GrayHat12/jsonabc/d0032f5bd355e75f167dcfc89ef29a2da098ebf1
   localforage:
     specifier: ^1.10.0
     version: 1.10.0
@@ -2219,7 +2219,7 @@ packages:
       levn: 0.4.1
       prelude-ls: 1.2.1
       type-check: 0.4.0
-      word-wrap: 1.2.3
+      word-wrap: 1.2.5
     dev: true
 
   /p-limit@2.3.0:
@@ -2626,8 +2626,8 @@ packages:
       isexe: 2.0.0
     dev: true
 
-  /word-wrap@1.2.3:
-    resolution: {integrity: sha512-Hz/mrNwitNRh/HUAtM/VT/5VH+ygD6DV7mYKZAtHOrbs8U7lvPS6xf7EJKMF0uW1KJCl0H701g3ZGus+muE5vQ==}
+  /word-wrap@1.2.5:
+    resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
     dev: true
 
@@ -2644,8 +2644,8 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  github.com/GrayHat12/jsonabc/d0032f5bd355e75f167dcfc89ef29a2da098ebf1:
-    resolution: {tarball: https://codeload.github.com/GrayHat12/jsonabc/tar.gz/d0032f5bd355e75f167dcfc89ef29a2da098ebf1}
+  git@github.com+GrayHat12/jsonabc/d0032f5bd355e75f167dcfc89ef29a2da098ebf1:
+    resolution: {commit: d0032f5bd355e75f167dcfc89ef29a2da098ebf1, repo: git@github.com:GrayHat12/jsonabc.git, type: git}
     name: jsonabc
     version: 2.3.2
     dev: false
