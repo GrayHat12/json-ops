@@ -82,36 +82,30 @@ function uniqueDifferenceFunction(differenceObject: Difference) {
 const STYLE_ID = "jsoneditor-styles-custom";
 
 function generateStyles(editorid: string, classNames: {[classname: string]: string[]}) {
-    let style2 = `
-    color: #292D1C !important;
-    --jse-key-color: #292D1C !important;
-    background-color: var(--background-color-custom) !important;`;
-    let style3 = `
-    color: #292D1C !important;
-    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-    `;
-    let style1Values: {[classname: string]: string[]} = {};
+    let style2 = `color:#292D1C!important;--jse-key-color:#292D1C!important;background-color:var(--background-color-custom)!important`;
+    let style3 = `color:#292D1C!important;--jse-selection-background-inactive-color:var(--background-color-custom)!important`;
+    let style1Values: {[classname: string]: Set<string>} = {};
     // let style1Selectors:string[] = [];
-    let style2Selectors:string[] = [];
-    let style3Selectors:string[] = [];
+    let style2Selectors = new Set<string>();
+    let style3Selectors = new Set<string>();
     Object.keys(classNames).forEach(className => {
-        style1Values[className] = [];
+        style1Values[className] = new Set();
         classNames[className].forEach(datapath => {
             let selector = `#${editorid} div[data-path="${datapath}"]`;
             // style1Selectors.push(selector);
-            style1Values[className].push(selector);
-            style2Selectors.push(selector + '>div:first-child>div');
-            style3Selectors.push(selector + ':first-child');
+            style1Values[className].add(selector);
+            style2Selectors.add(selector + '>div:first-child>div');
+            style3Selectors.add(selector + ':first-child');
         });
     });
-    style2 = `${style2Selectors.join(', ')}{${style2}}`;
-    style3 = `${style3Selectors.join(', ')}{${style3}}`;
+    style2 = style2Selectors.size > 0 ? `${Array.from(style2Selectors.values()).join(',')}{${style2}}` : '';
+    style3 = style3Selectors.size > 0 ? `${Array.from(style3Selectors.values()).join(',')}{${style3}}` : '';
     let style1s = Object.keys(style1Values).map(className => {
         let selectors = style1Values[className];
-        let val = `--background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};`
-        return `${selectors.join(', ')}{${val}}`;
+        let val = `--background-color-custom:${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"}`
+        return selectors.size > 0 ? `${Array.from(selectors.values()).join(',')}{${val}}` : "";
     });
-    return style1s.join('\n') + '\n' + style2 + '\n' + style3;
+    return style1s.join('') + style2 + style3
     // let style = `
     //     #${editorid} div[data-path="${datapath}"] {
     //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
