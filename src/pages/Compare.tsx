@@ -81,6 +81,53 @@ function uniqueDifferenceFunction(differenceObject: Difference) {
 
 const STYLE_ID = "jsoneditor-styles-custom";
 
+function generateStyles(editorid: string, classNames: {[classname: string]: string[]}) {
+    let style2 = `
+    color: #292D1C !important;
+    --jse-key-color: #292D1C !important;
+    background-color: var(--background-color-custom) !important;`;
+    let style3 = `
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+    `;
+    let style1Values: {[classname: string]: string[]} = {};
+    // let style1Selectors:string[] = [];
+    let style2Selectors:string[] = [];
+    let style3Selectors:string[] = [];
+    Object.keys(classNames).forEach(className => {
+        style1Values[className] = [];
+        classNames[className].forEach(datapath => {
+            let selector = `#${editorid} div[data-path="${datapath}"]`;
+            // style1Selectors.push(selector);
+            style1Values[className].push(selector);
+            style2Selectors.push(selector + '>div:first-child>div');
+            style3Selectors.push(selector + ':first-child');
+        });
+    });
+    style2 = `${style2Selectors.join(', ')}{${style2}}`;
+    style3 = `${style3Selectors.join(', ')}{${style3}}`;
+    let style1s = Object.keys(style1Values).map(className => {
+        let selectors = style1Values[className];
+        let val = `--background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};`
+        return `${selectors.join(', ')}{${val}}`;
+    });
+    return style1s.join('\n') + '\n' + style2 + '\n' + style3;
+    // let style = `
+    //     #${editorid} div[data-path="${datapath}"] {
+    //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
+    //     }
+    //     #${editorid} div[data-path="${datapath}"]>div:first-child>div {
+    //         color: #292D1C !important;
+    //         --jse-key-color: #292D1C !important;
+    //         background-color: var(--background-color-custom) !important;
+    //     }
+    //     #${editorid} div[data-path="${datapath}"]:first-child {
+    //         color: #292D1C !important;
+    //         --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+    //     }
+    //     `;
+}
+
 export default function Compare() {
     const [title, setTitle] = useState<string>("");
     const [assignedId, setAssignedId] = useState<number>();
@@ -227,33 +274,9 @@ export default function Compare() {
         saveStyleElement(styleElement);
     }
 
-    function highlightPath(path: JSONPath, editorid: string, className: string, editor: JSONEditor, styleElement: HTMLStyleElement) {
-        // let styleRules: string[] = [];
+    function highlightPath(path: JSONPath) {
         let fn = async (p: JSONPath) => {
-            let datapath = `%2F${p.join("%2F")}`;
-            // try {
-            //     let element = editor.findElement(path.slice(1));
-            //     element.classList.add(className);
-            // } catch (err) {
-            //     console.error(err);
-            //     console.log("Error highlighting path", path);
-            // }
-            let style = `
-                #${editorid} div[data-path="${datapath}"] {
-                    --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
-                }
-                #${editorid} div[data-path="${datapath}"]>div:first-child>div {
-                    color: #292D1C !important;
-                    --jse-key-color: #292D1C !important;
-                    background-color: var(--background-color-custom) !important;
-                }
-                #${editorid} div[data-path="${datapath}"]:first-child {
-                    color: #292D1C !important;
-                    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-                }
-                `;
-            styleElement.innerHTML += style;
-            return style;
+            return `%2F${p.join("%2F")}`;
         };
         let styleRules: Promise<string>[] = [];
         while (path.length > 0) {
@@ -263,30 +286,41 @@ export default function Compare() {
         return Promise.all(styleRules);
     }
 
-    async function highlightDifference(sideDiff: JSONDiff, editor: string, returnable: JSONEditor, styleElement: HTMLStyleElement) {
-        let tasks: Promise<string[]>[] = [];
+    async function highlightDifference(sideDiff: JSONDiff, returnable: JSONEditor) {
+        let tasks: ReturnType<typeof highlightPath>[] = [];
         // let styleRules: string[] = [];
         for (let i = 0; i < sideDiff.different.length; i++) {
             let path = sideDiff.different[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.different, returnable, styleElement));
+            tasks.push(highlightPath(_path));
         }
         for (let i = 0; i < sideDiff.extra.length; i++) {
             let path = sideDiff.extra[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.extra, returnable, styleElement));
+            tasks.push(highlightPath(_path));
         }
         for (let i = 0; i < sideDiff.missing.length; i++) {
             let path = sideDiff.missing[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.missing, returnable, styleElement));
+            tasks.push(highlightPath(_path));
         }
-        let styleRules = (await Promise.all(tasks)).flat();
-        // let styleElement = getStylesElement(STYLE_ID);
-        // console.log('styleRules', styleRules.length, styleRules[0]);
-        // styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
-        // returnable.refresh();
-        return { styleRules, returnable };
+        let styleRules = await Promise.all(tasks);
+        let result = [
+            {
+                style: styles.different,
+                paths: styleRules.slice(0, sideDiff.different.length).flat(),
+            },
+            {
+                style: styles.extra,
+                paths: styleRules.slice(sideDiff.different.length, sideDiff.different.length + sideDiff.extra.length).flat(),
+            },
+            {
+                style: styles.missing,
+                paths: styleRules.slice(sideDiff.different.length + sideDiff.extra.length).flat(),
+            },
+        ];
+        returnable.refresh();
+        return { result, returnable };
     }
 
     useEffect(() => {
@@ -343,31 +377,30 @@ export default function Compare() {
             highlightJobInterval = undefined;
             return;
         }
-        let tasks: Promise<{ styleRules: string[], returnable: JSONEditor }>[] = [];
+        let tasks: ReturnType<typeof highlightDifference>[] = [];
         if (differenceObject.left && leftRefEditor.current) {
             console.log("highlighting difference left");
-            tasks.push(highlightDifference(differenceObject.left, leftId, leftRefEditor.current, styleElement));
+            tasks.push(highlightDifference(differenceObject.left, leftRefEditor.current));
         }
         if (differenceObject.right && rightRefEditor.current) {
             console.log("highlighting difference right");
-            tasks.push(highlightDifference(differenceObject.right, rightId, rightRefEditor.current, styleElement));
+            tasks.push(highlightDifference(differenceObject.right, rightRefEditor.current));
         }
         try {
             styleElement.id = STYLE_ID;
-            let returns = await Promise.all(tasks);
-            // let styleRules = returns.map((x) => x.styleRules).flat();
-            let returnables = returns.map((x) => x.returnable);
-            // console.log('styleRules', styleRules.length, styleRules[0]);
-            // console.log('returnables', returnables);
-            // let final_style = "";
-            // await Promise.all(styleRules.map(async (styleRule) => {
-            //     styleElement.innerHTML += "\n" + styleRule;
-            // }));
-            // for (let i = 0; i < styleRules.length; i++) {
-            //     let styleRule = styleRules[i];
-            //     styleElement.innerHTML += "\n" + styleRule;
-            // }
-            // styleElement.innerHTML = styleElement.innerHTML + "\n" + final_style;
+            let [leftStyle, rightStyle] = await Promise.all(tasks);
+            let returnables = [leftStyle.returnable, rightStyle.returnable];
+            let leftcss = generateStyles(leftId, {
+                [styles.different]: leftStyle.result.find((x) => x.style === styles.different)?.paths || [],
+                [styles.extra]: leftStyle.result.find((x) => x.style === styles.extra)?.paths || [],
+                [styles.missing]: leftStyle.result.find((x) => x.style === styles.missing)?.paths || [],
+            });
+            let rightcss = generateStyles(rightId, {
+                [styles.different]: rightStyle.result.find((x) => x.style === styles.different)?.paths || [],
+                [styles.extra]: rightStyle.result.find((x) => x.style === styles.extra)?.paths || [],
+                [styles.missing]: rightStyle.result.find((x) => x.style === styles.missing)?.paths || [],
+            });
+            styleElement.innerHTML = leftcss + '\n' + rightcss;
             saveStyleElement(styleElement);
             returnables.forEach((x) => x.refresh());
         } catch (e) {
@@ -451,7 +484,7 @@ export default function Compare() {
         }
     }
 
-    function focusDifference(index: number) {
+    async function focusDifference(index: number) {
         if (uniqueDiff.length < index) return;
         let diff = uniqueDiff[index];
         if (!diff) return;
@@ -468,9 +501,10 @@ export default function Compare() {
                         let equal = joined_ours.startsWith(joined);
                         return equal;
                     });
+                    _path.shift();
                     // console.log('scrolling', _path);
                     leftRefEditor.current.scrollTo(_path).then(() => {
-                        _path.shift();
+                        // _path_left.shift();
                         if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
                     });
                 }).catch(console.error);
@@ -479,10 +513,12 @@ export default function Compare() {
             }
         }
         if (diff.pathRight) {
+            // console.log('focusing right', rightRefEditor.current);
             if (!rightRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathRight);
                 rightRefEditor.current.focus().then(() => {
+                    // console.log('right focused');
                     rightRefEditor.current.expand((path) => {
                         if (!path) return true;
                         let joined = path.join('.');
@@ -490,9 +526,10 @@ export default function Compare() {
                         let equal = joined_ours.startsWith(joined);
                         return equal;
                     });
+                    _path.shift();
                     // console.log('scrolling to', _path);
                     rightRefEditor.current.scrollTo(_path).then(() => {
-                        _path.shift();
+                        // console.log('found element', _path);
                         if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
                     }).catch(console.error);
                 }).catch(console.error);
@@ -511,14 +548,14 @@ export default function Compare() {
 
     function focusOnPreviousDifference() {
         if (currentDifferenceIndex < 1) return;
-        focusDifference(currentDifferenceIndex - 2);
+        focusDifference(currentDifferenceIndex - 2).then(console.log).catch(console.error);
         if (currentDifferenceIndex <= 1) return;
         setCurrentDifferenceIndex(currentDifferenceIndex - 1);
     }
 
     function focusOnNextDifference() {
         if (currentDifferenceIndex > uniqueDiff.length) return;
-        focusDifference(currentDifferenceIndex);
+        focusDifference(currentDifferenceIndex).then(console.log).catch(console.error);
         if (currentDifferenceIndex >= uniqueDiff.length) return;
         setCurrentDifferenceIndex(currentDifferenceIndex + 1);
     }
