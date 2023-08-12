@@ -9,9 +9,12 @@ import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
+import * as utils from "../utils";
+import { useWorker, WORKER_STATUS } from "../worker";
 
-let interval: number | undefined = undefined;
-let differenceInterval: number | undefined = undefined;
+let highlightJobInterval: number | undefined = undefined;
+let differencerInterval: number | undefined = undefined;
+let uniqueDifferenceInterval: number | undefined = undefined;
 
 function getStylesElement(id: string) {
     let styleElement = document.getElementById(id);
@@ -31,16 +34,115 @@ function saveStyleElement(element: HTMLElement) {
     }
 }
 
+function uniqueDifferenceFunction(differenceObject: Difference) {
+    let left = differenceObject.left;
+    let right = differenceObject.right;
+    let uniques: { pathLeft?: string; pathRight?: string; }[] = [];
+    // let tasks: Promise<void>[] = [];
+    // console.log("Finding unique difference", left, right);
+    // let a = left.different.filter(async (x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index));
+    // tasks = [...tasks, ...left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).map(async (path) => {
+    //     if (right.different.includes(path)) {
+    //         uniques.push({ pathLeft: path, pathRight: path });
+    //     }
+    // })];
+    left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
+        if (right.different.includes(path)) {
+            uniques.push({ pathLeft: path, pathRight: path });
+        }
+    });
+    // tasks = [...tasks, ...left.extra.map(async (path) => {
+    //     if (!right.extra.includes(path)) {
+    //         uniques.push({ pathLeft: path });
+    //     }
+    // })];
+    left.extra.forEach((path) => {
+        if (!right.extra.includes(path)) {
+            uniques.push({ pathLeft: path });
+        }
+    });
+    // tasks = [...tasks, ...right.extra.map(async (path) => {
+    //     if (!left.extra.includes(path)) {
+    //         uniques.push({ pathRight: path });
+    //     }
+    // })];
+    right.extra.forEach((path) => {
+        if (!left.extra.includes(path)) {
+            uniques.push({ pathRight: path });
+        }
+    });
+    // await Promise.all(tasks);
+    // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+    uniqueDifferenceInterval = undefined;
+    // setUniqueDiff(uniques);
+    // setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+    return { uniques, index: uniques.length === 0 ? 0 : 1 };
+}
+
 const STYLE_ID = "jsoneditor-styles-custom";
+
+function generateStyles(editorid: string, classNames: {[classname: string]: string[]}) {
+    let style2 = `
+    color: #292D1C !important;
+    --jse-key-color: #292D1C !important;
+    background-color: var(--background-color-custom) !important;`;
+    let style3 = `
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+    `;
+    let style1Values: {[classname: string]: string[]} = {};
+    // let style1Selectors:string[] = [];
+    let style2Selectors:string[] = [];
+    let style3Selectors:string[] = [];
+    Object.keys(classNames).forEach(className => {
+        style1Values[className] = [];
+        classNames[className].forEach(datapath => {
+            let selector = `#${editorid} div[data-path="${datapath}"]`;
+            // style1Selectors.push(selector);
+            style1Values[className].push(selector);
+            style2Selectors.push(selector + '>div:first-child>div');
+            style3Selectors.push(selector + ':first-child');
+        });
+    });
+    style2 = `${style2Selectors.join(', ')}{${style2}}`;
+    style3 = `${style3Selectors.join(', ')}{${style3}}`;
+    let style1s = Object.keys(style1Values).map(className => {
+        let selectors = style1Values[className];
+        let val = `--background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};`
+        return `${selectors.join(', ')}{${val}}`;
+    });
+    return style1s.join('\n') + '\n' + style2 + '\n' + style3;
+    // let style = `
+    //     #${editorid} div[data-path="${datapath}"] {
+    //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
+    //     }
+    //     #${editorid} div[data-path="${datapath}"]>div:first-child>div {
+    //         color: #292D1C !important;
+    //         --jse-key-color: #292D1C !important;
+    //         background-color: var(--background-color-custom) !important;
+    //     }
+    //     #${editorid} div[data-path="${datapath}"]:first-child {
+    //         color: #292D1C !important;
+    //         --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+    //     }
+    //     `;
+}
 
 export default function Compare() {
     const [title, setTitle] = useState<string>("");
     const [assignedId, setAssignedId] = useState<number>();
-    const [uniqueDiff, setUniqueDiff] = useState<{ pathLeft?: string; pathRight?: string}[]>([]);
+    const [uniqueDiff, setUniqueDiff] = useState<{ pathLeft?: string; pathRight?: string }[]>([]);
     const [differenceObject, setDifference] = useState<Difference | null>(null);
     const [leftMode, setLeftMode] = useState<Mode>(Mode.tree);
     const [rightMode, setRightMode] = useState<Mode>(Mode.tree);
     const [currentDifferenceIndex, setCurrentDifferenceIndex] = useState<number>(0);
+    const [loadingState, setLoadingState] = useState<boolean>(false);
+    const [uniqueDifferenceWorker, { status: differenceWorkerStatus, kill: killDifferenceWorker }] = useWorker(uniqueDifferenceFunction);
+    const [differenceFinderWorker, { status: differenceFinderWorkerStatus, kill: killDifferenceFinderWorker }] = useWorker(difference, {
+        localDependencies() {
+            return { ...utils, cache: {} }
+        },
+    });
 
     const leftRefEditor = useRef<JSONEditor>();
     const rightRefEditor = useRef<JSONEditor>();
@@ -105,6 +207,32 @@ export default function Compare() {
             });
     }, [id]);
 
+    function differenceFinderRunner(leftjson: any, rightjson: any) {
+        console.log('Running difference finder function runner', differenceFinderWorkerStatus);
+        if (differenceFinderWorkerStatus === WORKER_STATUS.RUNNING) {
+            console.log('Killing previous difference finder worker');
+        }
+        killDifferenceFinderWorker();
+        if (leftjson && rightjson) {
+            console.log("Finding difference");
+            // setLoadingState(true);
+            console.log('Starting difference finder worker');
+            differenceFinderWorker(leftjson, rightjson).then(_diff => {
+                setDifference(_diff);
+                console.log("Difference found");
+            }).catch(err => {
+                console.error(err);
+                console.log("Error finding difference");
+                setDifference(null);
+            }).finally(() => {
+                // setLoadingState(false);
+                if (differencerInterval) clearInterval(differencerInterval);
+            });
+        } else {
+            setDifference(null);
+        }
+    }
+
     function onChange() {
         console.log("Running onChange");
         if (!leftRefEditor.current || !rightRefEditor.current) {
@@ -124,26 +252,11 @@ export default function Compare() {
                 rightjson = JSON.parse(right.text);
             } catch (err) { }
         }
-        if (differenceInterval) {
-            clearInterval(differenceInterval);
-            differenceInterval = undefined;
+        if (differencerInterval) {
+            clearInterval(differencerInterval);
+            differencerInterval = undefined;
         }
-        if (leftjson && rightjson) {
-            console.log("Finding difference");
-            differenceInterval = setInterval(() => {
-                difference(leftjson, rightjson).then(_diff => {
-                    setDifference(_diff);
-                    if (differenceInterval) clearInterval(differenceInterval);
-                    console.log("Difference found");
-                }).catch(err => {
-                    console.error(err);
-                    console.log("Error finding difference");
-                    setDifference(null);
-                });
-            }, 500);
-        } else {
-            setDifference(null);
-        }
+        differenceFinderRunner(leftjson, rightjson);
     }
 
     function onLeftChange(content: Content, previousContent: Content, status: OnChangeStatus) {
@@ -161,109 +274,142 @@ export default function Compare() {
         saveStyleElement(styleElement);
     }
 
-    async function highlightPath(path: JSONPath, editorid: string, className: string, styleRules: string[]) {
+    function highlightPath(path: JSONPath) {
+        let fn = async (p: JSONPath) => {
+            return `%2F${p.join("%2F")}`;
+        };
+        let styleRules: Promise<string>[] = [];
         while (path.length > 0) {
-            let datapath = `%2F${path.join("%2F")}`;
-            styleRules.push(`
-                #${editorid} div[data-path="${datapath}"] {
-                    --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
-                }
-                #${editorid} div[data-path="${datapath}"]>div:first-child>div {
-                    color: #292D1C !important;
-                    --jse-key-color: #292D1C !important;
-                    background-color: var(--background-color-custom) !important;
-                }
-                #${editorid} div[data-path="${datapath}"]:first-child {
-                    color: #292D1C !important;
-                    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-                }
-                `);
+            styleRules.push(fn(path));
             path.pop();
         }
+        return Promise.all(styleRules);
     }
 
-    async function highlightDifference(sideDiff: JSONDiff, editor: string, returnable: JSONEditor) {
-        let tasks: Promise<void>[] = [];
-        let styleRules: string[] = [];
-        for(let i = 0; i < sideDiff.different.length; i++) {
+    async function highlightDifference(sideDiff: JSONDiff, returnable: JSONEditor) {
+        let tasks: ReturnType<typeof highlightPath>[] = [];
+        // let styleRules: string[] = [];
+        for (let i = 0; i < sideDiff.different.length; i++) {
             let path = sideDiff.different[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.different, styleRules));
+            tasks.push(highlightPath(_path));
         }
-        for(let i = 0; i < sideDiff.extra.length; i++) {
+        for (let i = 0; i < sideDiff.extra.length; i++) {
             let path = sideDiff.extra[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.extra, styleRules));
+            tasks.push(highlightPath(_path));
         }
-        for(let i = 0; i < sideDiff.missing.length; i++) {
+        for (let i = 0; i < sideDiff.missing.length; i++) {
             let path = sideDiff.missing[i];
             let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path, editor, styles.missing, styleRules));
+            tasks.push(highlightPath(_path));
         }
-        await Promise.all(tasks);
-        let styleElement = getStylesElement(STYLE_ID);
-        styleElement.innerHTML = styleElement.innerHTML + "\n" + styleRules.join("\n");
+        let styleRules = await Promise.all(tasks);
+        let result = [
+            {
+                style: styles.different,
+                paths: styleRules.slice(0, sideDiff.different.length).flat(),
+            },
+            {
+                style: styles.extra,
+                paths: styleRules.slice(sideDiff.different.length, sideDiff.different.length + sideDiff.extra.length).flat(),
+            },
+            {
+                style: styles.missing,
+                paths: styleRules.slice(sideDiff.different.length + sideDiff.extra.length).flat(),
+            },
+        ];
         returnable.refresh();
-        return returnable;
+        return { result, returnable };
     }
 
     useEffect(() => {
-        if (interval) clearInterval(interval);
-        interval = setInterval(regularHighlightJob, 10);
+        // console.log("Running useEffect");
+        if (highlightJobInterval) clearInterval(highlightJobInterval);
+        highlightJobInterval = setInterval(regularHighlightJob, 100);
         return () => {
-            if (interval) clearInterval(interval);
+            if (highlightJobInterval) clearInterval(highlightJobInterval);
         };
     }, [differenceObject]);
+
+    function uniqueDifferenceFunctionRunner() {
+        console.log('Running unique difference function runner', differenceWorkerStatus);
+        if (differenceWorkerStatus === WORKER_STATUS.RUNNING) {
+            console.log('Killing previous difference worker');
+
+        }
+        killDifferenceWorker();
+        console.log('Starting unique difference worker');
+        uniqueDifferenceWorker(differenceObject).then(result => {
+            setUniqueDiff(result.uniques);
+            setCurrentDifferenceIndex(result.index);
+        }).catch(console.error).finally(() => {
+            if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+        });
+    }
 
     useEffect(() => {
         if (!differenceObject) {
             setUniqueDiff([]);
             return;
         }
-        let left = differenceObject.left;
-        let right = differenceObject.right;
-        let uniques: { pathLeft?: string; pathRight?: string;}[] = [];
-        left.different.filter((x, index) => !left.different.find((y,_index) => y.startsWith(x) && index != _index)).forEach((path) => {
-            if (right.different.includes(path)) {
-                uniques.push({ pathLeft: path, pathRight: path});
-            }
-        });
-        left.extra.forEach((path) => {
-            if (!right.extra.includes(path)) {
-                uniques.push({ pathLeft: path});
-            }
-        });
-        right.extra.forEach((path) => {
-            if (!left.extra.includes(path)) {
-                uniques.push({ pathRight: path});
-            }
-        });
-        setUniqueDiff(uniques);
-        setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+        if (uniqueDifferenceInterval) {
+            clearInterval(uniqueDifferenceInterval);
+        }
+        uniqueDifferenceInterval = setInterval(uniqueDifferenceFunctionRunner, 20);
+        return () => {
+            if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+        };
     }, [differenceObject]);
+
+    useEffect(() => {
+        killDifferenceWorker();
+        killDifferenceFinderWorker();
+    }, [killDifferenceFinderWorker, killDifferenceWorker]);
 
     async function regularHighlightJob() {
         console.log("Running regular highlight job");
+        let styleElement = document.createElement('style');
         clearPreviousDifference();
         if (!differenceObject) {
             console.log("cleared interval");
-            clearInterval(interval);
-            interval = undefined;
+            clearInterval(highlightJobInterval);
+            highlightJobInterval = undefined;
             return;
         }
-        let tasks: Promise<JSONEditor>[] = [];
+        let tasks: ReturnType<typeof highlightDifference>[] = [];
         if (differenceObject.left && leftRefEditor.current) {
             console.log("highlighting difference left");
-            tasks.push(highlightDifference(differenceObject.left, leftId, leftRefEditor.current));
+            tasks.push(highlightDifference(differenceObject.left, leftRefEditor.current));
         }
         if (differenceObject.right && rightRefEditor.current) {
             console.log("highlighting difference right");
-            tasks.push(highlightDifference(differenceObject.right, rightId, rightRefEditor.current));
+            tasks.push(highlightDifference(differenceObject.right, rightRefEditor.current));
         }
-        console.log("cleared regularHighlight interval");
-        clearInterval(interval);
-        interval = undefined;
-        return Promise.all(tasks);
+        try {
+            styleElement.id = STYLE_ID;
+            let [leftStyle, rightStyle] = await Promise.all(tasks);
+            let returnables = [leftStyle.returnable, rightStyle.returnable];
+            let leftcss = generateStyles(leftId, {
+                [styles.different]: leftStyle.result.find((x) => x.style === styles.different)?.paths || [],
+                [styles.extra]: leftStyle.result.find((x) => x.style === styles.extra)?.paths || [],
+                [styles.missing]: leftStyle.result.find((x) => x.style === styles.missing)?.paths || [],
+            });
+            let rightcss = generateStyles(rightId, {
+                [styles.different]: rightStyle.result.find((x) => x.style === styles.different)?.paths || [],
+                [styles.extra]: rightStyle.result.find((x) => x.style === styles.extra)?.paths || [],
+                [styles.missing]: rightStyle.result.find((x) => x.style === styles.missing)?.paths || [],
+            });
+            styleElement.innerHTML = leftcss + '\n' + rightcss;
+            saveStyleElement(styleElement);
+            returnables.forEach((x) => x.refresh());
+        } catch (e) {
+            console.error(e);
+        }
+        console.log("cleared regularHighlight interval", highlightJobInterval);
+        clearInterval(highlightJobInterval);
+        highlightJobInterval = undefined;
+        // return Promise.all(tasks);
     }
 
     useEffect(() => {
@@ -338,44 +484,55 @@ export default function Compare() {
         }
     }
 
-    function focusDifference(index: number) {
+    async function focusDifference(index: number) {
         if (uniqueDiff.length < index) return;
         let diff = uniqueDiff[index];
         if (!diff) return;
+        console.log("focusing difference", diff);
         if (diff.pathLeft) {
             if (!leftRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathLeft);
-                leftRefEditor.current.expand((path) => {
-                    if (!path) return true;
-                    let joined = path.join('.');
-                    let joined_ours = _path.join('.').substring(2);
-                    let equal = joined_ours.startsWith(joined);
-                    return equal;
-                });
-                leftRefEditor.current.scrollTo(_path).then(() => {
+                leftRefEditor.current.focus().then(() => {
+                    leftRefEditor.current.expand((path) => {
+                        if (!path) return true;
+                        let joined = path.join('.');
+                        let joined_ours = _path.join('.').substring(2);
+                        let equal = joined_ours.startsWith(joined);
+                        return equal;
+                    });
                     _path.shift();
-                    if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{opacity: 0}, {opacity: 1}], {duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3})
-                });
+                    // console.log('scrolling', _path);
+                    leftRefEditor.current.scrollTo(_path).then(() => {
+                        // _path_left.shift();
+                        if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
+                    });
+                }).catch(console.error);
             } catch (err) {
                 console.error(err);
             }
         }
         if (diff.pathRight) {
+            // console.log('focusing right', rightRefEditor.current);
             if (!rightRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathRight);
-                rightRefEditor.current.expand((path) => {
-                    if (!path) return true;
-                    let joined = path.join('.');
-                    let joined_ours = _path.join('.').substring(2);
-                    let equal = joined_ours.startsWith(joined);
-                    return equal;
-                });
-                rightRefEditor.current.scrollTo(_path).then(() => {
+                rightRefEditor.current.focus().then(() => {
+                    // console.log('right focused');
+                    rightRefEditor.current.expand((path) => {
+                        if (!path) return true;
+                        let joined = path.join('.');
+                        let joined_ours = _path.join('.').substring(2);
+                        let equal = joined_ours.startsWith(joined);
+                        return equal;
+                    });
                     _path.shift();
-                    if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{opacity: 0}, {opacity: 1}], {duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3})
-                });
+                    // console.log('scrolling to', _path);
+                    rightRefEditor.current.scrollTo(_path).then(() => {
+                        // console.log('found element', _path);
+                        if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
+                    }).catch(console.error);
+                }).catch(console.error);
             } catch (err) {
                 console.error(err);
             }
@@ -391,14 +548,14 @@ export default function Compare() {
 
     function focusOnPreviousDifference() {
         if (currentDifferenceIndex < 1) return;
-        focusDifference(currentDifferenceIndex - 2);
+        focusDifference(currentDifferenceIndex - 2).then(console.log).catch(console.error);
         if (currentDifferenceIndex <= 1) return;
         setCurrentDifferenceIndex(currentDifferenceIndex - 1);
     }
 
     function focusOnNextDifference() {
         if (currentDifferenceIndex > uniqueDiff.length) return;
-        focusDifference(currentDifferenceIndex);
+        focusDifference(currentDifferenceIndex).then(console.log).catch(console.error);
         if (currentDifferenceIndex >= uniqueDiff.length) return;
         setCurrentDifferenceIndex(currentDifferenceIndex + 1);
     }
@@ -408,47 +565,50 @@ export default function Compare() {
             {loading ? (
                 <Loading />
             ) : (
-                <div className={styles.grid}>
-                    <div id={leftId} className={styles.col}>
-                        <JSONPane
-                            sortData={sortLeft}
-                            mode={leftMode}
-                            jsonRefEditor={leftRefEditor}
-                            onChangeMode={changeLeftMode}
-                            childProps={{
-                                mode: leftMode,
-                                onChange: onLeftChange,
-                            }}
-                            bindingsTitle={bindingsLeftTitle}
-                        ></JSONPane>
+                <>
+                    <div className={styles.grid}>
+                        <div id={leftId} className={styles.col}>
+                            <JSONPane
+                                sortData={sortLeft}
+                                mode={leftMode}
+                                jsonRefEditor={leftRefEditor}
+                                onChangeMode={changeLeftMode}
+                                childProps={{
+                                    mode: leftMode,
+                                    onChange: onLeftChange,
+                                }}
+                                bindingsTitle={bindingsLeftTitle}
+                            ></JSONPane>
+                        </div>
+                        <div className={styles.mid}>
+                            <Text>
+                                {currentDifferenceIndex} / {uniqueDiff.length} Differences
+                            </Text>
+                            <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
+                                <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
+                                    <BiSolidDownArrow />
+                                </Button>
+                                <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
+                                    <BiSolidUpArrow />
+                                </Button>
+                            </Button.Group>
+                        </div>
+                        <div id={rightId} className={styles.col}>
+                            <JSONPane
+                                sortData={sortRight}
+                                mode={rightMode}
+                                jsonRefEditor={rightRefEditor}
+                                bindingsTitle={bindingsRightTitle}
+                                onChangeMode={changeRightMode}
+                                childProps={{
+                                    mode: rightMode,
+                                    onChange: onRightChange,
+                                }}
+                            ></JSONPane>
+                        </div>
                     </div>
-                    <div className={styles.mid}>
-                        <Text>
-                            {currentDifferenceIndex} / {uniqueDiff.length} Differences
-                        </Text>
-                        <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
-                            <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
-                                <BiSolidDownArrow />
-                            </Button>
-                            <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
-                                <BiSolidUpArrow />
-                            </Button>
-                        </Button.Group>
-                    </div>
-                    <div id={rightId} className={styles.col}>
-                        <JSONPane
-                            sortData={sortRight}
-                            mode={rightMode}
-                            jsonRefEditor={rightRefEditor}
-                            bindingsTitle={bindingsRightTitle}
-                            onChangeMode={changeRightMode}
-                            childProps={{
-                                mode: rightMode,
-                                onChange: onRightChange,
-                            }}
-                        ></JSONPane>
-                    </div>
-                </div>
+                    {loadingState && <Loading css={{ position: "absolute", width: "100vw", height: "100vh" }} />}
+                </>
             )}
         </Container>
     );
