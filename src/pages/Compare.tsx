@@ -3,12 +3,13 @@ import JSONPane from "../components/JsonPane";
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { _IDBStorageItem, useAppContext } from "../context/AppContext";
-import { JSONEditor, Content, Mode, OnChangeStatus, parseJSONPath, JSONPath } from "vanilla-jsoneditor";
+import { JSONEditor, Content, Mode, OnChangeStatus, JSONPath } from "vanilla-jsoneditor";
 import Loading from "./Loading";
 import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
+import { parseJSONPath } from "../utils/butils";
 import * as utils from "../utils";
 import { useWorker, WORKER_STATUS } from "../worker";
 
@@ -165,6 +166,7 @@ export default function Compare() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        // (window as any).test = parseJSONPath;
         if (id === undefined) {
             navigate("/compare/new");
             return;
@@ -270,6 +272,7 @@ export default function Compare() {
 
     function highlightPath(path: JSONPath) {
         let fn = async (p: JSONPath) => {
+            // console.log('using json path', p);
             return encodeURIComponent(`/${p.map(v => v.replace('/', '~1')).join("/")}`);
         };
         let styleRules: Promise<string>[] = [];
@@ -290,11 +293,13 @@ export default function Compare() {
         }
         for (let i = 0; i < sideDiff.extra.length; i++) {
             let path = sideDiff.extra[i];
+            // console.log('using path', path);
             let _path = parseJSONPath(path.substring(2));
             tasks.push(highlightPath(_path));
         }
         for (let i = 0; i < sideDiff.missing.length; i++) {
             let path = sideDiff.missing[i];
+            // console.log('using path', path);
             let _path = parseJSONPath(path.substring(2));
             tasks.push(highlightPath(_path));
         }
