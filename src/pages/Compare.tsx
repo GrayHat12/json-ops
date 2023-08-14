@@ -270,7 +270,7 @@ export default function Compare() {
 
     function highlightPath(path: JSONPath) {
         let fn = async (p: JSONPath) => {
-            return `%2F${p.join("%2F")}`;
+            return encodeURIComponent(`/${p.map(v => v.replace('/', '~1')).join("/")}`);
         };
         let styleRules: Promise<string>[] = [];
         while (path.length > 0) {
