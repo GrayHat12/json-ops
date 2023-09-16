@@ -2,16 +2,17 @@ import { Button, Container, Text, useInput } from "@nextui-org/react";
 import JSONPane from "../components/JsonPane";
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { _IDBStorageItem, useAppContext } from "../context/AppContext";
+import { _IDBStorageItem } from "../context/AppContext";
 import { JSONEditor, Content, Mode, OnChangeStatus, JSONPath } from "vanilla-jsoneditor";
 import Loading from "./Loading";
-import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
+import { BiSolidUpArrow, BiSolidDownArrow, BiSolidSave } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
 import { parseJSONPath } from "../utils/butils";
 import * as utils from "../utils";
 import { useWorker, WORKER_STATUS } from "../worker";
+import { db as database } from "../context/db";
 
 let highlightJobInterval: number | undefined = undefined;
 let differencerInterval: number | undefined = undefined;
@@ -82,10 +83,10 @@ function uniqueDifferenceFunction(differenceObject: Difference) {
 
 const STYLE_ID = "jsoneditor-styles-custom";
 
-function generateStyles(editorid: string, classNames: {[classname: string]: string[]}) {
+function generateStyles(editorid: string, classNames: { [classname: string]: string[] }) {
     let style2 = `color:#292D1C!important;--jse-key-color:#292D1C!important;background-color:var(--background-color-custom)!important`;
     let style3 = `color:#292D1C!important;--jse-selection-background-inactive-color:var(--background-color-custom)!important`;
-    let style1Values: {[classname: string]: Set<string>} = {};
+    let style1Values: { [classname: string]: Set<string> } = {};
     // let style1Selectors:string[] = [];
     let style2Selectors = new Set<string>();
     let style3Selectors = new Set<string>();
@@ -157,7 +158,7 @@ export default function Compare() {
         bindings: bindingsRightTitle,
     } = useInput("Sample 2");
 
-    const { getComparison, loading } = useAppContext();
+    // const { loading } = useAppContext();
     const [functionsToRunAfterRender, setFunctionsToRunAfterRender] = useState<
         ((left: JSONEditor, right: JSONEditor) => void)[]
     >([]);
@@ -179,28 +180,24 @@ export default function Compare() {
             navigate("/compare/new");
             return;
         }
-        getComparison(id_as_number)
-            .then((data) => {
-                if (!data) {
-                    navigate("/compare/new");
-                    return;
+
+        database.comparisons.get(id_as_number).then((comparison) => {
+            setTitle(comparison.data.title);
+            setAssignedId(comparison.id || id_as_number);
+            setFunctionsToRunAfterRender((prev) => [
+                ...prev,
+                (left, right) => {
+                    left.set({'json': comparison.data.data.json_left.data}),
+                    right.set({'json': comparison.data.data.json_right.data}),
+                    onChange();
                 }
-                setTitle(data.title);
-                setAssignedId(data.id);
-                setFunctionsToRunAfterRender((prev) => [
-                    ...prev,
-                    (left, right) => {
-                        left.set(data.data.json_left.data);
-                        right.set(data.data.json_right.data);
-                    },
-                ]);
-                setLeftTitle(data.data.json_left.title);
-                setRightTitle(data.data.json_right.title);
-            })
-            .catch((err) => {
-                console.error(err);
-                navigate("/");
-            });
+            ]);
+            setLeftTitle(comparison.data.data.json_left.title);
+            setRightTitle(comparison.data.data.json_right.title);
+        }).catch((err) => {
+            console.error(err);
+            navigate("/");
+        });
     }, [id]);
 
     function differenceFinderRunner(leftjson: any, rightjson: any) {
@@ -559,9 +556,95 @@ export default function Compare() {
         setCurrentDifferenceIndex(currentDifferenceIndex + 1);
     }
 
+    function onSave() {
+        if (leftTitle.length < 3) {
+            alert("Left title is too short");
+            return;
+        }
+        if (rightTitle.length < 3) {
+            alert("Right title is too short");
+            return;
+        }
+        if (leftTitle.length > 30) {
+            alert("Left title is too long");
+            return;
+        }
+        if (rightTitle.length > 30) {
+            alert("Right title is too long");
+            return;
+        }
+        // left json
+        let leftJson: any = null;
+        if (!leftRefEditor.current) return;
+        let content = leftRefEditor.current.get();
+        let json = (content as any).json;
+        if (!json) {
+            try {
+                json = JSON.parse((content as any).text);
+            } catch (err) {
+                console.error(err);
+                return;
+            }
+        }
+        if (!json) return;
+        try {
+            leftJson = JSON.parse(cleanJSON(JSON.stringify(json)));
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+
+        // right json
+        let rightJson: any = null;
+        if (!rightRefEditor.current) return;
+        content = rightRefEditor.current.get();
+        json = (content as any).json;
+        if (!json) {
+            try {
+                json = JSON.parse((content as any).text);
+            } catch (err) {
+                console.error(err);
+                return;
+            }
+        }
+        if (!json) return;
+        try {
+            rightJson = JSON.parse(cleanJSON(JSON.stringify(json)));
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+
+        if (!leftJson || !rightJson) return;
+        let data_to_save = {
+            title: `${leftTitle} vs ${rightTitle}`,
+            data: {
+                json_left: {
+                    title: leftTitle,
+                    data: leftJson,
+                },
+                json_right: {
+                    title: rightTitle,
+                    data: rightJson,
+                }
+            }
+        };
+        if (assignedId) {
+            database.comparisons.update(assignedId, {data: data_to_save}).then(v => {
+                // console.log('v1', v);
+                // navigate(`/compare/${v}`);
+            }).catch(console.error);
+        } else {
+            database.comparisons.put({data: data_to_save}).then(v => {
+                console.log('v', v);
+                navigate(`/compare/${v}`);
+            }).catch(console.error);
+        }
+    }
+
     return (
         <Container css={{ padding: 0 }} xl>
-            {loading ? (
+            {false ? (
                 <Loading />
             ) : (
                 <>
@@ -580,17 +663,26 @@ export default function Compare() {
                             ></JSONPane>
                         </div>
                         <div className={styles.mid}>
-                            <Text>
-                                {currentDifferenceIndex} / {uniqueDiff.length} Differences
-                            </Text>
-                            <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
-                                <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
-                                    <BiSolidDownArrow />
+                            <div>
+                                <Text>
+                                    {currentDifferenceIndex} / {uniqueDiff.length} Differences
+                                </Text>
+                                <Button.Group disabled={uniqueDiff.length === 0} alt="Difference Navigation" label="Difference Navigation" size="xs">
+                                    <Button onClick={focusOnNextDifference} disabled={uniqueDiff.length === 0} alt="Next Difference" label="Next Difference" flat>
+                                        <BiSolidDownArrow />
+                                    </Button>
+                                    <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
+                                        <BiSolidUpArrow />
+                                    </Button>
+                                </Button.Group>
+                            </div>
+                            <div style={{marginTop: 50}}>
+                                <Button disabled={
+                                    false || !(((leftRefEditor.current?.get() as any)?.json || (leftRefEditor.current?.get() as any)?.text) && ((rightRefEditor.current?.get() as any)?.json || (rightRefEditor.current?.get() as any)?.text))
+                                } size="xs" onClick={onSave} alt="Save Comparison" label="Save Comparison" variant="bordered">
+                                    Save
                                 </Button>
-                                <Button onClick={focusOnPreviousDifference} disabled={uniqueDiff.length === 0} alt="Previous Difference" label="Previous Difference" flat>
-                                    <BiSolidUpArrow />
-                                </Button>
-                            </Button.Group>
+                            </div>
                         </div>
                         <div id={rightId} className={styles.col}>
                             <JSONPane

@@ -1,6 +1,9 @@
 import { Card, Container, Text } from "@nextui-org/react";
-import { ComparisonMetaData, useAppContext } from "../../context/AppContext";
+import { ComparisonMetaData } from "../../context/AppContext";
 import { useNavigate } from "react-router-dom";
+import { db as database } from "../../context/db";
+import { useLiveQuery } from "dexie-react-hooks";
+import styles from "./Drawer.module.css";
 
 function generateMockData(items: number) {
     const data = [];
@@ -18,29 +21,39 @@ export interface ComparisonMetaProps {
 }
 
 export function CompareMetaCard(props: ComparisonMetaProps) {
+    console.log('props', props);
     let navigate = useNavigate();
     function navigateToCompare() {
         navigate(`compare/${props.metadata.id}`);
     }
 
+    // return (
+    //     <Card
+    //         onPress={navigateToCompare}
+    //         isPressable
+    //         isHoverable
+    //         variant="bordered"
+    //         css={{ mw: "400px", marginBottom: 20 }}
+    //     >
+    //         <Card.Body css={{ textAlign: "justify" }}>
+    //             <Text>{props.metadata.title}</Text>
+    //         </Card.Body>
+    //     </Card>
+    // );
     return (
-        <Card
-            onPress={navigateToCompare}
-            isPressable
-            isHoverable
-            variant="bordered"
-            css={{ mw: "400px", marginBottom: 20 }}
-        >
-            <Card.Body css={{ textAlign: "justify" }}>
-                <Text>{props.metadata.title}</Text>
-            </Card.Body>
-        </Card>
-    );
+        <div className={styles.card}>
+            <Text>{props.metadata.title}</Text>
+        </div>
+    )
 }
 
 export default function Drawer() {
-    const { savedComparisons } = useAppContext();
+    // const { savedComparisons } = useAppContext();
+    // console.log('saved comparisons', savedComparisons);
     // const savedComparisonsList = savedComparisons.length ? savedComparisons : generateMockData(10);
+
+    const savedComparisons = useLiveQuery(() => database.comparisons.toArray());
+    console.log(savedComparisons);
 
     const myAvlHeight = 1152;
     const usableHeight = 870;
@@ -61,10 +74,10 @@ export default function Drawer() {
                 <Text h5>Saved Comparisons</Text>
             </Container>
             <div style={{ maxHeight: currentAvlHeight, overflowX: "hidden", overflowY: "auto" }}>
-                {savedComparisons.map((meta) => (
-                    <CompareMetaCard key={meta.id} metadata={meta} />
+                {savedComparisons?.map((meta) => (
+                    <CompareMetaCard key={meta.id} metadata={{ id: meta.id as number, title: meta.data.title }} />
                 ))}
-                {savedComparisons.length === 0 && <Text>No Saved Instances</Text>}
+                {savedComparisons?.length === 0 && <Text>No Saved Instances</Text>}
             </div>
         </Container>
     );

@@ -1,0 +1,59 @@
+#left-pane div[data-path="%2Fa%2F%5B0%5D"],
+#left-pane div[data-path="%2Fa"],
+#left-pane div[data-path="%2Fa%2F%5B1%5D"],
+#left-pane div[data-path="%2Fb%2Fc%2Fd"],
+#left-pane div[data-path="%2Fb%2Fc"],
+#left-pane div[data-path="%2Fb"] {
+    --background-color-custom: #F6D283
+}
+
+#left-pane div[data-path="%2Fa%2F%5B0%5D"]>div:first-child>div,
+#left-pane div[data-path="%2Fa"]>div:first-child>div,
+#left-pane div[data-path="%2Fa%2F%5B1%5D"]>div:first-child>div,
+#left-pane div[data-path="%2Fb%2Fc%2Fd"]>div:first-child>div,
+#left-pane div[data-path="%2Fb%2Fc"]>div:first-child>div,
+#left-pane div[data-path="%2Fb"]>div:first-child>div {
+    color: #292D1C !important;
+    --jse-key-color: #292D1C !important;
+    background-color: var(--background-color-custom) !important
+}
+
+#left-pane div[data-path="%2Fa%2F%5B0%5D"]:first-child,
+#left-pane div[data-path="%2Fa"]:first-child,
+#left-pane div[data-path="%2Fa%2F%5B1%5D"]:first-child,
+#left-pane div[data-path="%2Fb%2Fc%2Fd"]:first-child,
+#left-pane div[data-path="%2Fb%2Fc"]:first-child,
+#left-pane div[data-path="%2Fb"]:first-child {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important
+}
+
+#right-pane div[data-path="%2Fa%2F%5B0%5D"],
+#right-pane div[data-path="%2Fa"],
+#right-pane div[data-path="%2Fa%2F%5B1%5D"],
+#right-pane div[data-path="%2Fb%2Fc%2Fd"],
+#right-pane div[data-path="%2Fb%2Fc"],
+#right-pane div[data-path="%2Fb"] {
+    --background-color-custom: #F6D283
+}
+
+#right-pane div[data-path="%2Fa%2F%5B0%5D"]>div:first-child>div,
+#right-pane div[data-path="%2Fa"]>div:first-child>div,
+#right-pane div[data-path="%2Fa%2F%5B1%5D"]>div:first-child>div,
+#right-pane div[data-path="%2Fb%2Fc%2Fd"]>div:first-child>div,
+#right-pane div[data-path="%2Fb%2Fc"]>div:first-child>div,
+#right-pane div[data-path="%2Fb"]>div:first-child>div {
+    color: #292D1C !important;
+    --jse-key-color: #292D1C !important;
+    background-color: var(--background-color-custom) !important
+}
+
+#right-pane div[data-path="%2Fa%2F%5B0%5D"]:first-child,
+#right-pane div[data-path="%2Fa"]:first-child,
+#right-pane div[data-path="%2Fa%2F%5B1%5D"]:first-child,
+#right-pane div[data-path="%2Fb%2Fc%2Fd"]:first-child,
+#right-pane div[data-path="%2Fb%2Fc"]:first-child,
+#right-pane div[data-path="%2Fb"]:first-child {
+    color: #292D1C !important;
+    --jse-selection-background-inactive-color: var(--background-color-custom) !important
+}

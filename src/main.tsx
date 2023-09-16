@@ -15,7 +15,7 @@ function Main() {
         type: "dark",
     });
 
-    const darkMode = useDarkMode(false);
+    const darkMode = useDarkMode(true);
 
     return (
         <NextUIProvider theme={darkMode.value ? darkTheme : lightTheme}>
