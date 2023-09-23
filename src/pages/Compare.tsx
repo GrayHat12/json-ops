@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { _IDBStorageItem } from "../context/AppContext";
 import { JSONEditor, Content, Mode, OnChangeStatus, JSONPath } from "vanilla-jsoneditor";
 import Loading from "./Loading";
-import { BiSolidUpArrow, BiSolidDownArrow, BiSolidSave } from "react-icons/bi";
+import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, difference } from "../utils";
@@ -14,9 +14,9 @@ import * as utils from "../utils";
 import { useWorker, WORKER_STATUS } from "../worker";
 import { db as database } from "../context/db";
 
-let highlightJobInterval: number | undefined = undefined;
-let differencerInterval: number | undefined = undefined;
-let uniqueDifferenceInterval: number | undefined = undefined;
+let highlightJobInterval: ReturnType<typeof setTimeout> | undefined = undefined;
+let differencerInterval: ReturnType<typeof setTimeout> | undefined = undefined;
+let uniqueDifferenceInterval: ReturnType<typeof setTimeout> | undefined = undefined;
 
 function getStylesElement(id: string) {
     let styleElement = document.getElementById(id);
@@ -187,9 +187,9 @@ export default function Compare() {
             setFunctionsToRunAfterRender((prev) => [
                 ...prev,
                 (left, right) => {
-                    left.set({'json': comparison.data.data.json_left.data}),
-                    right.set({'json': comparison.data.data.json_right.data}),
-                    onChange();
+                    left.set({ 'json': comparison.data.data.json_left.data }),
+                        right.set({ 'json': comparison.data.data.json_right.data }),
+                        onChange();
                 }
             ]);
             setLeftTitle(comparison.data.data.json_left.title);
@@ -630,12 +630,12 @@ export default function Compare() {
             }
         };
         if (assignedId) {
-            database.comparisons.update(assignedId, {data: data_to_save}).then(v => {
+            database.comparisons.update(assignedId, { data: data_to_save }).then(v => {
                 // console.log('v1', v);
                 // navigate(`/compare/${v}`);
             }).catch(console.error);
         } else {
-            database.comparisons.put({data: data_to_save}).then(v => {
+            database.comparisons.put({ data: data_to_save }).then(v => {
                 console.log('v', v);
                 navigate(`/compare/${v}`);
             }).catch(console.error);
@@ -676,7 +676,7 @@ export default function Compare() {
                                     </Button>
                                 </Button.Group>
                             </div>
-                            <div style={{marginTop: 50}}>
+                            <div style={{ marginTop: 50 }}>
                                 <Button disabled={
                                     false || !(((leftRefEditor.current?.get() as any)?.json || (leftRefEditor.current?.get() as any)?.text) && ((rightRefEditor.current?.get() as any)?.json || (rightRefEditor.current?.get() as any)?.text))
                                 } size="xs" onClick={onSave} alt="Save Comparison" label="Save Comparison" variant="bordered">
