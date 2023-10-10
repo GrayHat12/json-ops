@@ -13,6 +13,7 @@ import { parseJSONPath } from "../utils/butils";
 import * as utils from "../utils";
 import { useWorker, WORKER_STATUS } from "../worker";
 import { db as database } from "../context/db";
+import JsonViewer from "../components/JsonViewer";
 
 let highlightJobInterval: ReturnType<typeof setTimeout> | undefined = undefined;
 let differencerInterval: ReturnType<typeof setTimeout> | undefined = undefined;
@@ -104,13 +105,13 @@ function generateStyles(editorid: string, classNames: { [classname: string]: str
     style3 = style3Selectors.size > 0 ? `${Array.from(style3Selectors.values()).join(',')}{${style3}}` : '';
     let style1s = Object.keys(style1Values).map(className => {
         let selectors = style1Values[className];
-        let val = `--background-color-custom:${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"}`
+        let val = `--background-color-custom:${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ff8573"}`
         return selectors.size > 0 ? `${Array.from(selectors.values()).join(',')}{${val}}` : "";
     });
     return style1s.join('') + style2 + style3
     // let style = `
     //     #${editorid} div[data-path="${datapath}"] {
-    //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
+    //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ff8573"};
     //     }
     //     #${editorid} div[data-path="${datapath}"]>div:first-child>div {
     //         color: #292D1C !important;
@@ -139,6 +140,7 @@ export default function Compare() {
             return { ...utils, cache: {} }
         },
     });
+    const [currentlyViewing, setCurrentlyViewing] = useState<{json: any, title: string} | undefined>(undefined);
 
     const leftRefEditor = useRef<JSONEditor>();
     const rightRefEditor = useRef<JSONEditor>();
@@ -642,17 +644,67 @@ export default function Compare() {
         }
     }
 
+    function onCloseViewer() {
+        setCurrentlyViewing(undefined);
+    }
+
+    function setViewingLeft() {
+        if (!leftRefEditor.current) return;
+        let content = leftRefEditor.current.get();
+        let json = (content as any).json;
+        if (!json) {
+            try {
+                json = JSON.parse((content as any).text);
+            } catch (err) {
+                console.error(err);
+                return;
+            }
+        }
+        if (!json) return;
+        try {
+            let data = JSON.parse(cleanJSON(JSON.stringify(json)));
+            setCurrentlyViewing({json: data, title: leftTitle});
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+    }
+
+    function setViewingRight() {
+        if (!rightRefEditor.current) return;
+        let content = rightRefEditor.current.get();
+        let json = (content as any).json;
+        if (!json) {
+            try {
+                json = JSON.parse((content as any).text);
+            } catch (err) {
+                console.error(err);
+                return;
+            }
+        }
+        if (!json) return;
+        try {
+            let data = JSON.parse(cleanJSON(JSON.stringify(json)));
+            setCurrentlyViewing({json: data, title: rightTitle});
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+    }
+
     return (
-        <Container css={{ padding: 0 }} xl>
+        <Container css={{ padding: 0, position: "relative" }} xl>
             {false ? (
                 <Loading />
             ) : (
                 <>
+                    <JsonViewer onClose={onCloseViewer} data={currentlyViewing} />
                     <div className={styles.grid}>
                         <div id={leftId} className={styles.col}>
                             <JSONPane
                                 sortData={sortLeft}
                                 mode={leftMode}
+                                view={setViewingLeft}
                                 jsonRefEditor={leftRefEditor}
                                 onChangeMode={changeLeftMode}
                                 childProps={{
@@ -688,6 +740,7 @@ export default function Compare() {
                             <JSONPane
                                 sortData={sortRight}
                                 mode={rightMode}
+                                view={setViewingRight}
                                 jsonRefEditor={rightRefEditor}
                                 bindingsTitle={bindingsRightTitle}
                                 onChangeMode={changeRightMode}

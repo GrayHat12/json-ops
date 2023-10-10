@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@nextui-org/react": "1.0.0-beta.13",
+    "@uiw/react-json-view": "2.0.0-alpha.7",
     "dequal": "^2.0.3",
     "dexie": "^3.2.4",
     "dexie-react-hooks": "^1.1.6",

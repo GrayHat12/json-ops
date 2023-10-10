@@ -1,6 +1,7 @@
 import { Button, Container, Input } from "@nextui-org/react";
 import { MutableRefObject } from "react";
 import { GiStarFormation } from "react-icons/gi";
+import { HiEye } from "react-icons/hi";
 import { BindingsChangeTarget } from "@nextui-org/react/types/use-input/use-input";
 import JSONEditorReact from "../JSONEditorReact";
 import { JSONEditor, Mode, JSONEditorPropsOptional } from "vanilla-jsoneditor";
@@ -15,6 +16,7 @@ interface JSONPaneProps {
     onChangeMode: (mode: Mode) => void;
     mode: Mode;
     childProps: JSONEditorPropsOptional;
+    view?: () => void;
 }
 
 export default function JSONPane(props: JSONPaneProps) {
@@ -52,6 +54,13 @@ export default function JSONPane(props: JSONPaneProps) {
                     </Button.Group>
                     <Input css={{flex: 1}} size="sm" placeholder="Json Title" {...props.bindingsTitle} />
                     <Button.Group size="xs">
+                        <Button 
+                            onClick={props.view} 
+                            disabled={!props.view}
+                            flat
+                            size="md"
+                            icon={<HiEye fill="currentColor" />}
+                        />
                         <Button
                             onClick={props.sortData}
                             disabled={!props.sortData}
