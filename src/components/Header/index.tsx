@@ -1,5 +1,5 @@
 import { Navbar, Switch, Text } from "@nextui-org/react";
-import AppLogo from "../../assets/vite.svg";
+import AppLogo from "../../assets/icon.svg";
 import Layout from "../Layout";
 import useDarkMode from "use-dark-mode";
 import { Link } from "react-router-dom";
@@ -14,7 +14,7 @@ export default function Header(props: HeaderProps) {
         <Layout content={props.children}>
             <Navbar isCompact isBordered variant="static">
                 <Navbar.Brand as={Link} to="/" href="/">
-                    <img src={AppLogo} alt="Vite Logo" width="32" height="32" />
+                    <img src={AppLogo} alt="Vite Logo" width="32" height="32" style={{marginRight: 14}} />
                     <Text b color="inherit" hideIn="xs">
                         JSON Compare
                     </Text>
