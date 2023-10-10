@@ -17,16 +17,16 @@ export function parseJSONPath(path: string): JSONPath {
                     index += 1;
                     start_index = index;
                 } else {
-                    console.log('skipping', char);
+                    // console.log('skipping', char);
                     index += 1;
                 }
             } break;
             case "]": {
-                if (path[start_index] === '[') {
+                if (path[start_index] === '[' && path[index + 1] === '.') {
                     let key = path.slice(start_index+1, index);
                     if (isNumericString(key)) {
                         parsed.push(key);
-                        index += 1;
+                        index += 2;
                         start_index = index;
                     }
                     else {

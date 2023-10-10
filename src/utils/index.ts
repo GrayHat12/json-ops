@@ -97,9 +97,9 @@ export function normalizeArray(objects: any[], baseKey = "$") {
     //         normalized[`${baseKey}[${index}]`] = object;
     //     }
     // }));
-    objects.forEach(async (object: any, index: number) => {
+    objects.forEach((object: any, index: number) => {
         if (isPlainObject(object)) {
-            for (let [key, value] of Object.entries(await normalizeObject(object, `${baseKey}[${index}]`))) {
+            for (let [key, value] of Object.entries(normalizeObject(object, `${baseKey}[${index}]`))) {
                 normalized[key] = value;
             }
             // normalized = {
@@ -107,7 +107,7 @@ export function normalizeArray(objects: any[], baseKey = "$") {
             //     ...await normalizeObject(object, `${baseKey}[${index}]`),
             // };
         } else if (isArray(object)) {
-            for (let [key, value] of Object.entries(await normalizeArray(object, `${baseKey}[${index}]`))) {
+            for (let [key, value] of Object.entries(normalizeArray(object, `${baseKey}[${index}]`))) {
                 normalized[key] = value;
             }
             // normalized = {

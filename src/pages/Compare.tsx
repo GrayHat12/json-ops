@@ -515,6 +515,7 @@ export default function Compare() {
             if (!rightRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathRight);
+                console.log('_path', _path);
                 rightRefEditor.current.focus().then(() => {
                     // console.log('right focused');
                     rightRefEditor.current.expand((path) => {
