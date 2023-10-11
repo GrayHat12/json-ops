@@ -17,7 +17,7 @@ export function parseJSONPath(path: string): JSONPath {
                     index += 1;
                     start_index = index;
                 } else {
-                    console.log('skipping', char);
+                    // console.log('skipping', path, char);
                     index += 1;
                 }
             } break;

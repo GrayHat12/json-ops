@@ -8,7 +8,7 @@ import Loading from "./Loading";
 import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import styles from "./compare.module.css";
-import { JSONDiff, Difference, difference } from "../utils";
+import { JSONDiff, Difference, differenceV2 } from "../utils";
 import { parseJSONPath } from "../utils/butils";
 import * as utils from "../utils";
 import { useWorker, WORKER_STATUS } from "../worker";
@@ -49,39 +49,108 @@ function uniqueDifferenceFunction(differenceObject: Difference) {
     //     }
     // })];
     left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
-        if (right.different.includes(path)) {
-            uniques.push({ pathLeft: path, pathRight: path });
-        }
+        uniques.push({ pathLeft: path, pathRight: path });
     });
     // tasks = [...tasks, ...left.extra.map(async (path) => {
     //     if (!right.extra.includes(path)) {
     //         uniques.push({ pathLeft: path });
     //     }
     // })];
-    left.extra.forEach((path) => {
-        if (!right.extra.includes(path)) {
-            uniques.push({ pathLeft: path });
-        }
+    left.extra.filter((x, index) => !left.extra.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
+        uniques.push({ pathLeft: path });
     });
     // tasks = [...tasks, ...right.extra.map(async (path) => {
     //     if (!left.extra.includes(path)) {
     //         uniques.push({ pathRight: path });
     //     }
     // })];
-    right.extra.forEach((path) => {
-        if (!left.extra.includes(path)) {
-            uniques.push({ pathRight: path });
-        }
+    right.extra.filter((x, index) => !right.extra.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
+        uniques.push({ pathRight: path });
     });
     // await Promise.all(tasks);
     // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
-    uniqueDifferenceInterval = undefined;
+    // uniqueDifferenceInterval = undefined;
+    // setUniqueDiff(uniques);
+    // setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
+    return { uniques, index: uniques.length === 0 ? 0 : 1 };
+}
+
+function uniqueDifferenceFunctionV2(differenceObject: Difference) {
+    let left = differenceObject.left;
+    let right = differenceObject.right;
+    let uniques: { pathLeft?: string; pathRight?: string; }[] = [];
+    // let tasks: Promise<void>[] = [];
+    // console.log("Finding unique difference", left, right);
+    // let a = left.different.filter(async (x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index));
+    // tasks = [...tasks, ...left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).map(async (path) => {
+    //     if (right.different.includes(path)) {
+    //         uniques.push({ pathLeft: path, pathRight: path });
+    //     }
+    // })];
+    left.different.forEach((path) => {
+        uniques.push({ pathLeft: path, pathRight: path });
+    });
+    // tasks = [...tasks, ...left.extra.map(async (path) => {
+    //     if (!right.extra.includes(path)) {
+    //         uniques.push({ pathLeft: path });
+    //     }
+    // })];
+    left.missing.forEach((path) => {
+        uniques.push({ pathLeft: path });
+    });
+    // tasks = [...tasks, ...right.extra.map(async (path) => {
+    //     if (!left.extra.includes(path)) {
+    //         uniques.push({ pathRight: path });
+    //     }
+    // })];
+    right.extra.filter((x, index) => !right.extra.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
+        uniques.push({ pathRight: path });
+    });
+    // await Promise.all(tasks);
+    // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+    // uniqueDifferenceInterval = undefined;
     // setUniqueDiff(uniques);
     // setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
     return { uniques, index: uniques.length === 0 ? 0 : 1 };
 }
 
 const STYLE_ID = "jsoneditor-styles-custom";
+
+function generateStylesV2(editorid: string, classNames: {[classname: string]: string[]}) {
+    let style: string[] = [];
+    Object.keys(classNames).forEach(className => {
+        classNames[className].forEach(datapath => {
+            let selector = `#${editorid} div[data-path="${datapath}"] > div`;
+            let rules: string[] = [
+                "color:#292D1C!important",
+                "--jse-key-color:#292D1C!important",
+                "background-color:var(--background-color-custom)!important",
+                "--jse-selection-background-inactive-color:var(--background-color-custom)!important",
+                "--jse-value-color-string:#292D1C"
+            ];
+            switch (className) {
+                case styles.different: {
+                    rules.push('--jse-contents-background-color: #f6d283;');
+                    break;
+                };
+                case styles.missing: {
+                    rules.push('--jse-contents-background-color: #f69283;');
+                    break;
+                };
+                case styles.extra: {
+                    rules.push('--jse-contents-background-color: #c5da8b;');
+                    break;
+                };
+                default: {
+                    console.error("Should never happen", editorid, classNames, className);
+                    break;
+                }
+            }
+            style.push(`${selector}{${rules.join(";")}}`);
+        });
+    });
+    return style.join('');
+}
 
 function generateStyles(editorid: string, classNames: { [classname: string]: string[] }) {
     let style2 = `color:#292D1C!important;--jse-key-color:#292D1C!important;background-color:var(--background-color-custom)!important`;
@@ -107,7 +176,7 @@ function generateStyles(editorid: string, classNames: { [classname: string]: str
         let val = `--background-color-custom:${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"}`
         return selectors.size > 0 ? `${Array.from(selectors.values()).join(',')}{${val}}` : "";
     });
-    return style1s.join('') + style2 + style3
+    return style1s.join('') + style2 + style3;
     // let style = `
     //     #${editorid} div[data-path="${datapath}"] {
     //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ED8373"};
@@ -133,8 +202,8 @@ export default function Compare() {
     const [rightMode, setRightMode] = useState<Mode>(Mode.tree);
     const [currentDifferenceIndex, setCurrentDifferenceIndex] = useState<number>(0);
     const [loadingState, setLoadingState] = useState<boolean>(false);
-    const [uniqueDifferenceWorker, { status: differenceWorkerStatus, kill: killDifferenceWorker }] = useWorker(uniqueDifferenceFunction);
-    const [differenceFinderWorker, { status: differenceFinderWorkerStatus, kill: killDifferenceFinderWorker }] = useWorker(difference, {
+    const [uniqueDifferenceWorker, { status: differenceWorkerStatus, kill: killDifferenceWorker }] = useWorker(uniqueDifferenceFunctionV2);
+    const [differenceFinderWorker, { status: differenceFinderWorkerStatus, kill: killDifferenceFinderWorker }] = useWorker(differenceV2, {
         localDependencies() {
             return { ...utils, cache: {} }
         },
@@ -320,7 +389,7 @@ export default function Compare() {
     }
 
     useEffect(() => {
-        // console.log("Running useEffect");
+        console.log("Running useEffect", differenceObject);
         if (highlightJobInterval) clearInterval(highlightJobInterval);
         highlightJobInterval = setInterval(regularHighlightJob, 100);
         return () => {
@@ -337,11 +406,13 @@ export default function Compare() {
         killDifferenceWorker();
         console.log('Starting unique difference worker');
         uniqueDifferenceWorker(differenceObject).then(result => {
+            console.log('uniques', result);
             setUniqueDiff(result.uniques);
             setCurrentDifferenceIndex(result.index);
         }).catch(console.error).finally(() => {
-            if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
+            console.log("FINISHED");
         });
+        if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
     }
 
     useEffect(() => {
@@ -352,7 +423,7 @@ export default function Compare() {
         if (uniqueDifferenceInterval) {
             clearInterval(uniqueDifferenceInterval);
         }
-        uniqueDifferenceInterval = setInterval(uniqueDifferenceFunctionRunner, 20);
+        uniqueDifferenceInterval = setInterval(uniqueDifferenceFunctionRunner, 100);
         return () => {
             if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
         };
@@ -386,12 +457,12 @@ export default function Compare() {
             styleElement.id = STYLE_ID;
             let [leftStyle, rightStyle] = await Promise.all(tasks);
             let returnables = [leftStyle.returnable, rightStyle.returnable];
-            let leftcss = generateStyles(leftId, {
+            let leftcss = generateStylesV2(leftId, {
                 [styles.different]: leftStyle.result.find((x) => x.style === styles.different)?.paths || [],
                 [styles.extra]: leftStyle.result.find((x) => x.style === styles.extra)?.paths || [],
                 [styles.missing]: leftStyle.result.find((x) => x.style === styles.missing)?.paths || [],
             });
-            let rightcss = generateStyles(rightId, {
+            let rightcss = generateStylesV2(rightId, {
                 [styles.different]: rightStyle.result.find((x) => x.style === styles.different)?.paths || [],
                 [styles.extra]: rightStyle.result.find((x) => x.style === styles.extra)?.paths || [],
                 [styles.missing]: rightStyle.result.find((x) => x.style === styles.missing)?.paths || [],

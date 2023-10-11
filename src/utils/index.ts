@@ -36,7 +36,7 @@ export function cyrb53(str: string, seed: number = 0) {
 };
 
 export function hashCode(s: string) {
-    for(var i = 0, h = 0; i < s.length; i++)
+    for (var i = 0, h = 0; i < s.length; i++)
         h = Math.imul(31, h) + s.charCodeAt(i) | 0;
     return h;
 }
@@ -97,9 +97,9 @@ export function normalizeArray(objects: any[], baseKey = "$") {
     //         normalized[`${baseKey}[${index}]`] = object;
     //     }
     // }));
-    objects.forEach(async (object: any, index: number) => {
+    objects.forEach((object: any, index: number) => {
         if (isPlainObject(object)) {
-            for (let [key, value] of Object.entries(await normalizeObject(object, `${baseKey}[${index}]`))) {
+            for (let [key, value] of Object.entries(normalizeObject(object, `${baseKey}[${index}]`))) {
                 normalized[key] = value;
             }
             // normalized = {
@@ -107,7 +107,7 @@ export function normalizeArray(objects: any[], baseKey = "$") {
             //     ...await normalizeObject(object, `${baseKey}[${index}]`),
             // };
         } else if (isArray(object)) {
-            for (let [key, value] of Object.entries(await normalizeArray(object, `${baseKey}[${index}]`))) {
+            for (let [key, value] of Object.entries(normalizeArray(object, `${baseKey}[${index}]`))) {
                 normalized[key] = value;
             }
             // normalized = {
@@ -257,4 +257,93 @@ export function difference(jsona: any, jsonb: any) {
     } else {
         return null;
     }
+}
+
+export function differenceV2(jsona: any, jsonb: any, baseKey: string = "$") {
+    if (!baseKey.endsWith(".")) {
+        baseKey += ".";
+    }
+    let diff: Difference = {
+        left: {
+            different: [],
+            extra: [],
+            missing: [],
+        },
+        right: {
+            different: [],
+            extra: [],
+            missing: []
+        },
+    };
+
+    if (isPlainObject(jsona) && isPlainObject(jsonb)) {
+        Object.keys(jsona).forEach(keya => {
+            let newkey = keya.replace("'", "\\'").replace('"', '\\"');
+            if (newkey.includes(".")) {
+                newkey = `"${newkey}"`;
+            }
+            let path = `${baseKey}${newkey}`;
+            if (typeof jsonb[keya] !== "undefined") {
+                let vala = jsona[keya];
+                let valb = jsonb[keya];
+                if (typeof vala !== typeof valb) {
+                    diff.left.different.push(path);
+                    diff.right.different.push(path);
+                } else if ((isPlainObject(vala) && isPlainObject(valb)) || (isArray(vala) && isArray(valb))) {
+                    let _diff = differenceV2(vala, valb, path);
+                    diff.left.different = diff.left.different.concat(_diff.left.different);
+                    diff.right.different = diff.right.different.concat(_diff.right.different);
+                    diff.left.extra = diff.left.extra.concat(_diff.left.extra);
+                    diff.right.extra = diff.right.extra.concat(_diff.right.extra);
+                    diff.left.missing = diff.left.missing.concat(_diff.left.missing);
+                    diff.right.missing = diff.right.missing.concat(_diff.right.missing);
+                } else if (vala !== valb) {
+                    diff.left.different.push(path);
+                    diff.right.different.push(path);
+                }
+            }
+            else {
+                diff.left.missing.push(path);
+                // diff.right.extra.push(path);
+            }
+        });
+        Object.keys(jsonb).forEach(keyb => {
+            let newkey = keyb.replace("'", "\\'").replace('"', '\\"');
+            if (newkey.includes(".")) {
+                newkey = `"${newkey}"`;
+            }
+            let path = `${baseKey}${newkey}`;
+            if (typeof jsona[keyb] === "undefined") {
+                diff.right.extra.push(path);
+            }
+        });
+    } else if (isArray(jsona) && isArray(jsonb)) {
+        for (let i = 0; i < jsona.length; i++) {
+            let path = `${baseKey}.[${i}]`;
+            let vala = jsona[i];
+            let valb = jsonb[i];
+            if (typeof vala !== typeof valb) {
+                diff.left.different.push(path);
+                diff.right.different.push(path);
+            } else if ((isPlainObject(vala) && isPlainObject(valb)) || (isArray(vala) && isArray(valb))) {
+                let _diff = differenceV2(vala, valb, path);
+                diff.left.different = diff.left.different.concat(_diff.left.different);
+                diff.right.different = diff.right.different.concat(_diff.right.different);
+                diff.left.extra = diff.left.extra.concat(_diff.left.extra);
+                diff.right.extra = diff.right.extra.concat(_diff.right.extra);
+                diff.left.missing = diff.left.missing.concat(_diff.left.missing);
+                diff.right.missing = diff.right.missing.concat(_diff.right.missing);
+            } else if (vala !== valb) {
+                diff.left.different.push(path);
+                diff.right.different.push(path);
+            }
+        }
+        for (let i = jsona.length; i < jsonb.length; i++) {
+            let path = `${baseKey}.[${i}]`;
+            diff.right.extra.push(path);
+        }
+    } else {
+        throw Error("Invalid input JSON");
+    }
+    return diff;
 }
