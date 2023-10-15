@@ -126,7 +126,8 @@ function generateStylesV2(editorid: string, classNames: {[classname: string]: st
                 "--jse-key-color:#292D1C!important",
                 "background-color:var(--background-color-custom)!important",
                 "--jse-selection-background-inactive-color:var(--background-color-custom)!important",
-                "--jse-value-color-string:#292D1C"
+                "--jse-value-color-string:#292D1C",
+                "--jse-delimiter-color:#292D1C"
             ];
             switch (className) {
                 case styles.different: {
