@@ -22,11 +22,11 @@ export function parseJSONPath(path: string): JSONPath {
                 }
             } break;
             case "]": {
-                if (path[start_index] === '[') {
+                if (path[start_index] === '[' && path[index + 1] === '.') {
                     let key = path.slice(start_index+1, index);
                     if (isNumericString(key)) {
                         parsed.push(key);
-                        index += 1;
+                        index += 2;
                         start_index = index;
                     }
                     else {

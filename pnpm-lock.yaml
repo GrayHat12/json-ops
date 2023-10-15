@@ -8,6 +8,9 @@ dependencies:
   '@nextui-org/react':
     specifier: 1.0.0-beta.13
     version: 1.0.0-beta.13(react-dom@18.2.0)(react@18.2.0)
+  '@uiw/react-json-view':
+    specifier: 2.0.0-alpha.7
+    version: 2.0.0-alpha.7(@babel/runtime@7.22.5)(react-dom@18.2.0)(react@18.2.0)
   dequal:
     specifier: ^2.0.3
     version: 2.0.3
@@ -2730,6 +2733,18 @@ packages:
       '@typescript-eslint/types': 5.59.0
       eslint-visitor-keys: 3.4.1
     dev: true
+
+  /@uiw/react-json-view@2.0.0-alpha.7(@babel/runtime@7.22.5)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-hhlDlQcszeg3IcwxIc7NLpkzOVs4A4rB0IgkVZkeUnLOEx2AMlE2hlybgxJfm4E0c9NoRmOFgrYkL1SbeXBW4w==}
+    peerDependencies:
+      '@babel/runtime': '>=7.10.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+    dependencies:
+      '@babel/runtime': 7.22.5
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+    dev: false
 
   /@use-it/event-listener@0.1.7(react@18.2.0):
     resolution: {integrity: sha512-hgfExDzUU9uTRTPDCpw2s9jWTxcxmpJya3fK5ADpf5VDpSy8WYwY/kh28XE0tUcbsljeP8wfan48QvAQTSSa3Q==}

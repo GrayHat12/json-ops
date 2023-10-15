@@ -57,17 +57,17 @@ export default function JSONEditorReact(props: JSONEditorProps) {
         .my-json-editor {
             --jse-theme-color: ${theme.colors.primary.value} !important;
             --jse-theme-color-highlight: ${theme.colors.backgroundContrast.value} !important;
-            --jse-background-color: #272823 !important;
-            --jse-delimiter-color: #65D9EF !important;
-            --jse-value-color-string: #FD9700 !important;
-            --jse-selection-background-color: ${theme.colors.backgroundAlpha.value} !important;
+            --jse-background-color: ${theme.colors.backgroundContrast.value} !important;
+            --jse-delimiter-color: ${theme.colors.foreground.value} !important;
+            --jse-value-color-string: ${theme.colors.neutral.value} !important;
+            --jse-selection-background-color: ${theme.colors.accents5.value} !important;
             --jse-selection-background-inactive-color: ${theme.colors.backgroundContrast.value} !important;
-            --jse-value-color-boolean: #9582FF !important;
+            --jse-value-color-boolean: #0b7fe2 !important;
             --jse-value-color-number: #7FA360 !important;
             --jse-panel-background: ${theme.colors.accents0.value} !important;
             --jse-main-border: 1px solid ${theme.colors.border.value} !important;
-            --jse-key-color: #ECEDEE !important;
-            --jse-text-color: #ECEDEE !important;
+            --jse-key-color: ${theme.colors.secondary.value} !important;
+            --jse-text-color: ${theme.colors.secondary.value} !important;
         }
         .my-json-editor ul, ol {
             color: #ECEDEE !important;
