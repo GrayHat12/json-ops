@@ -55,13 +55,16 @@
     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
 } */
 
-.different {
+.different,
+.different_parent {
     --background-color-custom: #F6D283;
 }
-.extra {
+.extra,
+.extra_parent {
     --background-color-custom: #C5DA8B;
 }
-.missing {
+.missing,
+.missing_parent {
     --background-color-custom: #ED8373;
 }
 

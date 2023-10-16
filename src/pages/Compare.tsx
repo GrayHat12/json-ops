@@ -119,9 +119,10 @@ const STYLE_ID = "jsoneditor-styles-custom";
 
 function generateStylesV2(editorid: string, classNames: {[classname: string]: string[]}) {
     let style: string[] = [];
+    // console.log('classnames',editorid,classNames);
     Object.keys(classNames).forEach(className => {
         classNames[className].forEach(datapath => {
-            let selector = `#${editorid} div[data-path="${datapath}"] > div`;
+            let selector = `#${editorid} div[data-path="${datapath}"]${className.includes('parent') ? ' > div:first-child' : ' > div'}`;
             let rules: string[] = [
                 "color:#292D1C!important",
                 "--jse-key-color:#292D1C!important",
@@ -131,15 +132,18 @@ function generateStylesV2(editorid: string, classNames: {[classname: string]: st
                 "--jse-delimiter-color:#292D1C"
             ];
             switch (className) {
-                case styles.different: {
+                case styles.different:
+                case styles.different_parent: {
                     rules.push('--jse-contents-background-color: #f6d283;');
                     break;
                 };
-                case styles.missing: {
+                case styles.missing:
+                case styles.missing_parent: {
                     rules.push('--jse-contents-background-color: #f69283;');
                     break;
                 };
-                case styles.extra: {
+                case styles.extra:
+                case styles.extra_parent: {
                     rules.push('--jse-contents-background-color: #c5da8b;');
                     break;
                 };
@@ -151,6 +155,7 @@ function generateStylesV2(editorid: string, classNames: {[classname: string]: st
             style.push(`${selector}{${rules.join(";")}}`);
         });
     });
+    // console.log(style);
     return style.join('');
 }
 
@@ -339,17 +344,26 @@ export default function Compare() {
         saveStyleElement(styleElement);
     }
 
-    function highlightPath(path: JSONPath) {
+    async function highlightPath(path: JSONPath) {
         let fn = async (p: JSONPath) => {
             // console.log('using json path', p);
             return encodeURIComponent(`/${p.map(v => v.replace('/', '~1')).join("/")}`);
         };
         let styleRules: Promise<string>[] = [];
+        let styleRulesActual: Promise<string>[] = [];
         while (path.length > 0) {
-            styleRules.push(fn(path));
+            if (styleRulesActual.length === 0) {
+                styleRulesActual.push(fn(path));
+            } else {
+                styleRules.push(fn(path));
+            }
             path.pop();
         }
-        return Promise.all(styleRules);
+        let paths = await Promise.all([...styleRulesActual, ...styleRules]);
+        return {
+            actual: paths[0],
+            rest: paths.slice(1)
+        }
     }
 
     async function highlightDifference(sideDiff: JSONDiff, returnable: JSONEditor) {
@@ -373,18 +387,35 @@ export default function Compare() {
             tasks.push(highlightPath(_path));
         }
         let styleRules = await Promise.all(tasks);
+        let stylesDict = {
+            different: styleRules.slice(0, sideDiff.different.length).flat(),
+            extra: styleRules.slice(sideDiff.different.length, sideDiff.different.length + sideDiff.extra.length).flat(),
+            missing: styleRules.slice(sideDiff.different.length + sideDiff.extra.length).flat()
+        }
         let result = [
             {
                 style: styles.different,
-                paths: styleRules.slice(0, sideDiff.different.length).flat(),
+                paths: stylesDict.different.map(x => x.actual),
             },
             {
                 style: styles.extra,
-                paths: styleRules.slice(sideDiff.different.length, sideDiff.different.length + sideDiff.extra.length).flat(),
+                paths: stylesDict.extra.map(x => x.actual),
             },
             {
                 style: styles.missing,
-                paths: styleRules.slice(sideDiff.different.length + sideDiff.extra.length).flat(),
+                paths: stylesDict.missing.map(x => x.actual),
+            },
+            {
+                style: styles.different_parent,
+                paths: stylesDict.different.map(x => x.rest).flat(),
+            },
+            {
+                style: styles.extra_parent,
+                paths: stylesDict.extra.map(x => x.rest).flat(),
+            },
+            {
+                style: styles.missing_parent,
+                paths: stylesDict.missing.map(x => x.rest).flat(),
             },
         ];
         returnable.refresh();
@@ -459,16 +490,23 @@ export default function Compare() {
         try {
             styleElement.id = STYLE_ID;
             let [leftStyle, rightStyle] = await Promise.all(tasks);
+            // console.log('styles', leftStyle, rightStyle);
             let returnables = [leftStyle.returnable, rightStyle.returnable];
             let leftcss = generateStylesV2(leftId, {
                 [styles.different]: leftStyle.result.find((x) => x.style === styles.different)?.paths || [],
                 [styles.extra]: leftStyle.result.find((x) => x.style === styles.extra)?.paths || [],
                 [styles.missing]: leftStyle.result.find((x) => x.style === styles.missing)?.paths || [],
+                [styles.different_parent]: leftStyle.result.find((x) => x.style === styles.different_parent)?.paths || [],
+                [styles.extra_parent]: leftStyle.result.find((x) => x.style === styles.extra_parent)?.paths || [],
+                [styles.missing_parent]: leftStyle.result.find((x) => x.style === styles.missing_parent)?.paths || [],
             });
             let rightcss = generateStylesV2(rightId, {
                 [styles.different]: rightStyle.result.find((x) => x.style === styles.different)?.paths || [],
                 [styles.extra]: rightStyle.result.find((x) => x.style === styles.extra)?.paths || [],
                 [styles.missing]: rightStyle.result.find((x) => x.style === styles.missing)?.paths || [],
+                [styles.different_parent]: rightStyle.result.find((x) => x.style === styles.different_parent)?.paths || [],
+                [styles.extra_parent]: rightStyle.result.find((x) => x.style === styles.extra_parent)?.paths || [],
+                [styles.missing_parent]: rightStyle.result.find((x) => x.style === styles.missing_parent)?.paths || [],
             });
             styleElement.innerHTML = leftcss + '\n' + rightcss;
             saveStyleElement(styleElement);
@@ -575,7 +613,7 @@ export default function Compare() {
                     // console.log('scrolling', _path);
                     leftRefEditor.current.scrollTo(_path).then(() => {
                         // _path_left.shift();
-                        if (leftRefEditor.current) leftRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
+                        if (leftRefEditor.current) leftRefEditor.current.findElement(_path)?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
                     });
                 }).catch(console.error);
             } catch (err) {
@@ -587,7 +625,7 @@ export default function Compare() {
             if (!rightRefEditor.current) return;
             try {
                 let _path = parseJSONPath(diff.pathRight);
-                console.log('_path', _path);
+                // console.log('_path', _path);
                 rightRefEditor.current.focus().then(() => {
                     // console.log('right focused');
                     rightRefEditor.current.expand((path) => {
@@ -601,7 +639,7 @@ export default function Compare() {
                     // console.log('scrolling to', _path);
                     rightRefEditor.current.scrollTo(_path).then(() => {
                         // console.log('found element', _path);
-                        if (rightRefEditor.current) rightRefEditor.current.findElement(_path).animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
+                        if (rightRefEditor.current) rightRefEditor.current.findElement(_path)?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards', iterations: 3 })
                     }).catch(console.error);
                 }).catch(console.error);
             } catch (err) {
@@ -619,16 +657,25 @@ export default function Compare() {
 
     function focusOnPreviousDifference() {
         if (currentDifferenceIndex < 1) return;
-        focusDifference(currentDifferenceIndex - 2).then(console.log).catch(console.error);
+        let newIndex = currentDifferenceIndex - 2;
+        if (newIndex < 0) {
+            newIndex = uniqueDiff.length - 1;
+        }
+        focusDifference(newIndex).then(console.log).catch(console.error);
         if (currentDifferenceIndex <= 1) return;
-        setCurrentDifferenceIndex(currentDifferenceIndex - 1);
+        setCurrentDifferenceIndex(newIndex + 1);
     }
 
     function focusOnNextDifference() {
+        // console.log(currentDifferenceIndex, uniqueDiff.length);
         if (currentDifferenceIndex > uniqueDiff.length) return;
-        focusDifference(currentDifferenceIndex).then(console.log).catch(console.error);
+        let newIndex = currentDifferenceIndex;
+        if (newIndex > (uniqueDiff.length - 1)) {
+            newIndex = 0;
+        }
+        focusDifference(newIndex).then(console.log).catch(console.error);
         if (currentDifferenceIndex >= uniqueDiff.length) return;
-        setCurrentDifferenceIndex(currentDifferenceIndex + 1);
+        setCurrentDifferenceIndex(newIndex + 1);
     }
 
     function onSave() {

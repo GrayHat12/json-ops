@@ -319,7 +319,7 @@ export function differenceV2(jsona: any, jsonb: any, baseKey: string = "$") {
         });
     } else if (isArray(jsona) && isArray(jsonb)) {
         for (let i = 0; i < jsona.length; i++) {
-            let path = `${baseKey}.[${i}]`;
+            let path = `${baseKey}[${i}]`;
             let vala = jsona[i];
             let valb = jsonb[i];
             if (typeof vala !== typeof valb) {
