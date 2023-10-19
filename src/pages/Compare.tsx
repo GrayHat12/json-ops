@@ -7,6 +7,7 @@ import { JSONEditor, Content, Mode, OnChangeStatus, JSONPath } from "vanilla-jso
 import Loading from "./Loading";
 import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
+import * as jsonabc from "jsonabc";
 import styles from "./compare.module.css";
 import { JSONDiff, Difference, differenceV2 } from "../utils";
 import { parseJSONPath } from "../utils/butils";
@@ -15,66 +16,9 @@ import { useWorker, WORKER_STATUS } from "../worker";
 import { db as database } from "../context/db";
 import JsonViewer from "../components/JsonViewer";
 
-let highlightJobInterval: ReturnType<typeof setTimeout> | undefined = undefined;
 let differencerInterval: ReturnType<typeof setTimeout> | undefined = undefined;
 let uniqueDifferenceInterval: ReturnType<typeof setTimeout> | undefined = undefined;
 
-function getStylesElement(id: string) {
-    let styleElement = document.getElementById(id);
-    if (!styleElement) {
-        styleElement = document.createElement("style");
-        styleElement.id = id;
-    }
-    return styleElement;
-}
-
-function saveStyleElement(element: HTMLElement) {
-    let existing = document.getElementById(element.id);
-    if (existing) {
-        existing.innerHTML = element.innerHTML;
-    } else {
-        document.head.appendChild(element);
-    }
-}
-
-function uniqueDifferenceFunction(differenceObject: Difference) {
-    let left = differenceObject.left;
-    let right = differenceObject.right;
-    let uniques: { pathLeft?: string; pathRight?: string; }[] = [];
-    // let tasks: Promise<void>[] = [];
-    // console.log("Finding unique difference", left, right);
-    // let a = left.different.filter(async (x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index));
-    // tasks = [...tasks, ...left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).map(async (path) => {
-    //     if (right.different.includes(path)) {
-    //         uniques.push({ pathLeft: path, pathRight: path });
-    //     }
-    // })];
-    left.different.filter((x, index) => !left.different.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
-        uniques.push({ pathLeft: path, pathRight: path });
-    });
-    // tasks = [...tasks, ...left.extra.map(async (path) => {
-    //     if (!right.extra.includes(path)) {
-    //         uniques.push({ pathLeft: path });
-    //     }
-    // })];
-    left.extra.filter((x, index) => !left.extra.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
-        uniques.push({ pathLeft: path });
-    });
-    // tasks = [...tasks, ...right.extra.map(async (path) => {
-    //     if (!left.extra.includes(path)) {
-    //         uniques.push({ pathRight: path });
-    //     }
-    // })];
-    right.extra.filter((x, index) => !right.extra.find((y, _index) => y.startsWith(x) && index != _index)).forEach((path) => {
-        uniques.push({ pathRight: path });
-    });
-    // await Promise.all(tasks);
-    // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
-    // uniqueDifferenceInterval = undefined;
-    // setUniqueDiff(uniques);
-    // setCurrentDifferenceIndex(uniques.length === 0 ? 0 : 1);
-    return { uniques, index: uniques.length === 0 ? 0 : 1 };
-}
 
 function uniqueDifferenceFunctionV2(differenceObject: Difference) {
     let left = differenceObject.left;
@@ -115,89 +59,9 @@ function uniqueDifferenceFunctionV2(differenceObject: Difference) {
     return { uniques, index: uniques.length === 0 ? 0 : 1 };
 }
 
-const STYLE_ID = "jsoneditor-styles-custom";
-
-function generateStylesV2(editorid: string, classNames: {[classname: string]: string[]}) {
-    let style: string[] = [];
-    // console.log('classnames',editorid,classNames);
-    Object.keys(classNames).forEach(className => {
-        classNames[className].forEach(datapath => {
-            let selector = `#${editorid} div[data-path="${datapath}"]${className.includes('parent') ? ' > div:first-child' : ' > div'}`;
-            let rules: string[] = [
-                "color:#292D1C!important",
-                "--jse-key-color:#292D1C!important",
-                "background-color:var(--background-color-custom)!important",
-                "--jse-selection-background-inactive-color:var(--background-color-custom)!important",
-                "--jse-value-color-string:#292D1C",
-                "--jse-delimiter-color:#292D1C"
-            ];
-            switch (className) {
-                case styles.different:
-                case styles.different_parent: {
-                    rules.push('--jse-contents-background-color: #f6d283;');
-                    break;
-                };
-                case styles.missing:
-                case styles.missing_parent: {
-                    rules.push('--jse-contents-background-color: #f69283;');
-                    break;
-                };
-                case styles.extra:
-                case styles.extra_parent: {
-                    rules.push('--jse-contents-background-color: #c5da8b;');
-                    break;
-                };
-                default: {
-                    console.error("Should never happen", editorid, classNames, className);
-                    break;
-                }
-            }
-            style.push(`${selector}{${rules.join(";")}}`);
-        });
-    });
-    // console.log(style);
-    return style.join('');
-}
-
-function generateStyles(editorid: string, classNames: { [classname: string]: string[] }) {
-    let style2 = `color:#292D1C!important;--jse-key-color:#292D1C!important;background-color:var(--background-color-custom)!important`;
-    let style3 = `color:#292D1C!important;--jse-selection-background-inactive-color:var(--background-color-custom)!important`;
-    let style1Values: { [classname: string]: Set<string> } = {};
-    // let style1Selectors:string[] = [];
-    let style2Selectors = new Set<string>();
-    let style3Selectors = new Set<string>();
-    Object.keys(classNames).forEach(className => {
-        style1Values[className] = new Set();
-        classNames[className].forEach(datapath => {
-            let selector = `#${editorid} div[data-path="${datapath}"]`;
-            // style1Selectors.push(selector);
-            style1Values[className].add(selector);
-            style2Selectors.add(selector + '>div:first-child>div');
-            style3Selectors.add(selector + ':first-child');
-        });
-    });
-    style2 = style2Selectors.size > 0 ? `${Array.from(style2Selectors.values()).join(',')}{${style2}}` : '';
-    style3 = style3Selectors.size > 0 ? `${Array.from(style3Selectors.values()).join(',')}{${style3}}` : '';
-    let style1s = Object.keys(style1Values).map(className => {
-        let selectors = style1Values[className];
-        let val = `--background-color-custom:${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ff8573"}`
-        return selectors.size > 0 ? `${Array.from(selectors.values()).join(',')}{${val}}` : "";
-    });
-    return style1s.join('') + style2 + style3;
-    // let style = `
-    //     #${editorid} div[data-path="${datapath}"] {
-    //         --background-color-custom: ${className == styles.different ? "#F6D283" : className == styles.extra ? "#C5DA8B" : "#ff8573"};
-    //     }
-    //     #${editorid} div[data-path="${datapath}"]>div:first-child>div {
-    //         color: #292D1C !important;
-    //         --jse-key-color: #292D1C !important;
-    //         background-color: var(--background-color-custom) !important;
-    //     }
-    //     #${editorid} div[data-path="${datapath}"]:first-child {
-    //         color: #292D1C !important;
-    //         --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-    //     }
-    //     `;
+function customSort(input: any) {
+    let data = JSON.parse(cleanJSON(JSON.stringify(input)));
+    return sortObj(data);
 }
 
 export default function Compare() {
@@ -213,6 +77,16 @@ export default function Compare() {
     const [differenceFinderWorker, { status: differenceFinderWorkerStatus, kill: killDifferenceFinderWorker }] = useWorker(differenceV2, {
         localDependencies() {
             return { ...utils, cache: {} }
+        },
+    });
+    const [leftSortWorker, { status: leftSortWorkerStatus, kill: killLeftSortWorker }] = useWorker(customSort, {
+        localDependencies() {
+            return {...jsonabc, isArray: utils.isArray, isObject: utils.isPlainObject }
+        },
+    });
+    const [rightSortWorker, { status: rightSortWorkerStatus, kill: killRightSortWorker }] = useWorker(customSort, {
+        localDependencies() {
+            return {...jsonabc, isArray: utils.isArray, isObject: utils.isPlainObject }
         },
     });
     const [currentlyViewing, setCurrentlyViewing] = useState<{json: any, title: string} | undefined>(undefined);
@@ -338,99 +212,6 @@ export default function Compare() {
         if (!status.contentErrors) onChange();
     }
 
-    function clearPreviousDifference() {
-        let styleElement = getStylesElement(STYLE_ID);
-        styleElement.innerHTML = "";
-        saveStyleElement(styleElement);
-    }
-
-    async function highlightPath(path: JSONPath) {
-        let fn = async (p: JSONPath) => {
-            // console.log('using json path', p);
-            return encodeURIComponent(`/${p.map(v => v.replace('/', '~1')).join("/")}`);
-        };
-        let styleRules: Promise<string>[] = [];
-        let styleRulesActual: Promise<string>[] = [];
-        while (path.length > 0) {
-            if (styleRulesActual.length === 0) {
-                styleRulesActual.push(fn(path));
-            } else {
-                styleRules.push(fn(path));
-            }
-            path.pop();
-        }
-        let paths = await Promise.all([...styleRulesActual, ...styleRules]);
-        return {
-            actual: paths[0],
-            rest: paths.slice(1)
-        }
-    }
-
-    async function highlightDifference(sideDiff: JSONDiff, returnable: JSONEditor) {
-        let tasks: ReturnType<typeof highlightPath>[] = [];
-        // let styleRules: string[] = [];
-        for (let i = 0; i < sideDiff.different.length; i++) {
-            let path = sideDiff.different[i];
-            let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path));
-        }
-        for (let i = 0; i < sideDiff.extra.length; i++) {
-            let path = sideDiff.extra[i];
-            // console.log('using path', path);
-            let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path));
-        }
-        for (let i = 0; i < sideDiff.missing.length; i++) {
-            let path = sideDiff.missing[i];
-            // console.log('using path', path);
-            let _path = parseJSONPath(path.substring(2));
-            tasks.push(highlightPath(_path));
-        }
-        let styleRules = await Promise.all(tasks);
-        let stylesDict = {
-            different: styleRules.slice(0, sideDiff.different.length).flat(),
-            extra: styleRules.slice(sideDiff.different.length, sideDiff.different.length + sideDiff.extra.length).flat(),
-            missing: styleRules.slice(sideDiff.different.length + sideDiff.extra.length).flat()
-        }
-        let result = [
-            {
-                style: styles.different,
-                paths: stylesDict.different.map(x => x.actual),
-            },
-            {
-                style: styles.extra,
-                paths: stylesDict.extra.map(x => x.actual),
-            },
-            {
-                style: styles.missing,
-                paths: stylesDict.missing.map(x => x.actual),
-            },
-            {
-                style: styles.different_parent,
-                paths: stylesDict.different.map(x => x.rest).flat(),
-            },
-            {
-                style: styles.extra_parent,
-                paths: stylesDict.extra.map(x => x.rest).flat(),
-            },
-            {
-                style: styles.missing_parent,
-                paths: stylesDict.missing.map(x => x.rest).flat(),
-            },
-        ];
-        returnable.refresh();
-        return { result, returnable };
-    }
-
-    useEffect(() => {
-        console.log("Running useEffect", differenceObject);
-        if (highlightJobInterval) clearInterval(highlightJobInterval);
-        highlightJobInterval = setInterval(regularHighlightJob, 100);
-        return () => {
-            if (highlightJobInterval) clearInterval(highlightJobInterval);
-        };
-    }, [differenceObject]);
-
     function uniqueDifferenceFunctionRunner() {
         console.log('Running unique difference function runner', differenceWorkerStatus);
         if (differenceWorkerStatus === WORKER_STATUS.RUNNING) {
@@ -468,58 +249,6 @@ export default function Compare() {
         killDifferenceFinderWorker();
     }, [killDifferenceFinderWorker, killDifferenceWorker]);
 
-    async function regularHighlightJob() {
-        console.log("Running regular highlight job");
-        let styleElement = document.createElement('style');
-        clearPreviousDifference();
-        if (!differenceObject) {
-            console.log("cleared interval");
-            clearInterval(highlightJobInterval);
-            highlightJobInterval = undefined;
-            return;
-        }
-        let tasks: ReturnType<typeof highlightDifference>[] = [];
-        if (differenceObject.left && leftRefEditor.current) {
-            console.log("highlighting difference left");
-            tasks.push(highlightDifference(differenceObject.left, leftRefEditor.current));
-        }
-        if (differenceObject.right && rightRefEditor.current) {
-            console.log("highlighting difference right");
-            tasks.push(highlightDifference(differenceObject.right, rightRefEditor.current));
-        }
-        try {
-            styleElement.id = STYLE_ID;
-            let [leftStyle, rightStyle] = await Promise.all(tasks);
-            // console.log('styles', leftStyle, rightStyle);
-            let returnables = [leftStyle.returnable, rightStyle.returnable];
-            let leftcss = generateStylesV2(leftId, {
-                [styles.different]: leftStyle.result.find((x) => x.style === styles.different)?.paths || [],
-                [styles.extra]: leftStyle.result.find((x) => x.style === styles.extra)?.paths || [],
-                [styles.missing]: leftStyle.result.find((x) => x.style === styles.missing)?.paths || [],
-                [styles.different_parent]: leftStyle.result.find((x) => x.style === styles.different_parent)?.paths || [],
-                [styles.extra_parent]: leftStyle.result.find((x) => x.style === styles.extra_parent)?.paths || [],
-                [styles.missing_parent]: leftStyle.result.find((x) => x.style === styles.missing_parent)?.paths || [],
-            });
-            let rightcss = generateStylesV2(rightId, {
-                [styles.different]: rightStyle.result.find((x) => x.style === styles.different)?.paths || [],
-                [styles.extra]: rightStyle.result.find((x) => x.style === styles.extra)?.paths || [],
-                [styles.missing]: rightStyle.result.find((x) => x.style === styles.missing)?.paths || [],
-                [styles.different_parent]: rightStyle.result.find((x) => x.style === styles.different_parent)?.paths || [],
-                [styles.extra_parent]: rightStyle.result.find((x) => x.style === styles.extra_parent)?.paths || [],
-                [styles.missing_parent]: rightStyle.result.find((x) => x.style === styles.missing_parent)?.paths || [],
-            });
-            styleElement.innerHTML = leftcss + '\n' + rightcss;
-            saveStyleElement(styleElement);
-            returnables.forEach((x) => x.refresh());
-        } catch (e) {
-            console.error(e);
-        }
-        console.log("cleared regularHighlight interval", highlightJobInterval);
-        clearInterval(highlightJobInterval);
-        highlightJobInterval = undefined;
-        // return Promise.all(tasks);
-    }
-
     useEffect(() => {
         if (!leftRefEditor.current || !rightRefEditor.current) {
             return;
@@ -547,20 +276,23 @@ export default function Compare() {
             }
         }
         if (!json) return;
-        try {
-            let data = JSON.parse(cleanJSON(JSON.stringify(json)));
-            let sorted = sortObj(data);
-            // leftRefEditor.current.set({ json: sorted });
+        console.log('Running left sort function runner', leftSortWorkerStatus);
+        if (leftSortWorkerStatus === WORKER_STATUS.RUNNING) {
+            console.log('Killing previous left sort worker');
+        }
+        killLeftSortWorker();
+        console.log('Starting left sort worker');
+        leftSortWorker(json).then(sorted => {
             if (leftMode == Mode.text) {
                 leftRefEditor.current.set({ text: JSON.stringify(sorted) });
             } else if (leftMode == Mode.tree) {
                 leftRefEditor.current.set({ json: sorted });
             }
-            onLeftChange({ json: sorted }, { json: data }, { contentErrors: null, patchResult: null });
-        } catch (err) {
-            console.error(err);
-            return;
-        }
+            onLeftChange({ json: sorted }, { json: json }, { contentErrors: null, patchResult: null });
+        }).catch(console.error).finally(() => {
+            console.log("FINISHED");
+        });
+        // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
     }
 
     function sortRight() {
@@ -576,20 +308,23 @@ export default function Compare() {
             }
         }
         if (!json) return;
-        try {
-            let data = JSON.parse(cleanJSON(JSON.stringify(json)));
-            let sorted = sortObj(data);
-            // rightRefEditor.current.set({ json: sorted });
+        console.log('Running right sort function runner', rightSortWorkerStatus);
+        if (rightSortWorkerStatus === WORKER_STATUS.RUNNING) {
+            console.log('Killing previous right sort worker');
+        }
+        killRightSortWorker();
+        console.log('Starting right sort worker');
+        rightSortWorker(json).then(sorted => {
             if (rightMode == Mode.text) {
                 rightRefEditor.current.set({ text: JSON.stringify(sorted) });
             } else if (rightMode == Mode.tree) {
                 rightRefEditor.current.set({ json: sorted });
             }
-            onRightChange({ json: sorted }, { json: data }, { contentErrors: null, patchResult: null });
-        } catch (err) {
-            console.error(err);
-            return;
-        }
+            onRightChange({ json: sorted }, { json: json }, { contentErrors: null, patchResult: null });
+        }).catch(console.error).finally(() => {
+            console.log("FINISHED");
+        });
+        // if (uniqueDifferenceInterval) clearInterval(uniqueDifferenceInterval);
     }
 
     async function focusDifference(index: number) {
@@ -599,6 +334,7 @@ export default function Compare() {
         console.log("focusing difference", diff);
         if (diff.pathLeft) {
             if (!leftRefEditor.current) return;
+            if (leftMode != Mode.tree) return;
             try {
                 let _path = parseJSONPath(diff.pathLeft);
                 leftRefEditor.current.focus().then(() => {
@@ -623,6 +359,7 @@ export default function Compare() {
         if (diff.pathRight) {
             // console.log('focusing right', rightRefEditor.current);
             if (!rightRefEditor.current) return;
+            if (rightMode != Mode.tree) return;
             try {
                 let _path = parseJSONPath(diff.pathRight);
                 // console.log('_path', _path);
@@ -830,6 +567,20 @@ export default function Compare() {
                                 childProps={{
                                     mode: leftMode,
                                     onChange: onLeftChange,
+                                    onClassName: ((path, value) => {
+                                        let pathString = `$.${path.map(x => x.match(/^\d+$/) ? `[${x}]` : x).map(x => x.includes('.') ? `"${x}"`: x).join('.')}`;
+                                        if (pathString === '$.') return "";
+                                        if (differenceObject?.left.different.find(x => x.startsWith(pathString))) {
+                                            // console.log(pathString, differenceObject.left.different);
+                                            return styles.different;
+                                        } else if (differenceObject?.left.missing.find(x => x.startsWith(pathString))) {
+                                            // console.log(pathString, differenceObject.left.missing);
+                                            return styles.missing;
+                                        } else if (differenceObject?.left.extra.find(x => x.startsWith(pathString))) {
+                                            // console.log(pathString, differenceObject.left.extra);
+                                            return styles.extra;
+                                        }
+                                    })
                                 }}
                                 bindingsTitle={bindingsLeftTitle}
                             ></JSONPane>
@@ -867,6 +618,20 @@ export default function Compare() {
                                 childProps={{
                                     mode: rightMode,
                                     onChange: onRightChange,
+                                    onClassName: ((path, value) => {
+                                        let pathString = `$.${path.map(x => x.match(/^\d+$/) ? `[${x}]` : x).map(x => x.includes('.') ? `"${x}"`: x).join('.')}`;
+                                        if (pathString === '$.') return "";
+                                        if (differenceObject?.right.different.find(x => x.startsWith(pathString))) {
+                                            // console.log(pathString, differenceObject.left.different);
+                                            return styles.different;
+                                        } else if (differenceObject?.right.missing.find(x => x.startsWith(pathString))) {
+                                            // console.log(pathString, differenceObject.left.missing);
+                                            return styles.missing;
+                                        } else if (differenceObject?.right.extra.find(x => x.startsWith(pathString))) {
+                                            // console.log(pathString, differenceObject.left.extra);
+                                            return styles.extra;
+                                        }
+                                    })
                                 }}
                             ></JSONPane>
                         </div>
