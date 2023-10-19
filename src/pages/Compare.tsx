@@ -9,7 +9,7 @@ import { BiSolidUpArrow, BiSolidDownArrow } from "react-icons/bi";
 import { sortObj, cleanJSON } from "jsonabc";
 import * as jsonabc from "jsonabc";
 import styles from "./compare.module.css";
-import { JSONDiff, Difference, differenceV2 } from "../utils";
+import { Difference, differenceV2 } from "../utils";
 import { parseJSONPath } from "../utils/butils";
 import * as utils from "../utils";
 import { useWorker, WORKER_STATUS } from "../worker";
@@ -81,12 +81,12 @@ export default function Compare() {
     });
     const [leftSortWorker, { status: leftSortWorkerStatus, kill: killLeftSortWorker }] = useWorker(customSort, {
         localDependencies() {
-            return {...jsonabc, isArray: utils.isArray, isObject: utils.isPlainObject }
+            return {...jsonabc }
         },
     });
     const [rightSortWorker, { status: rightSortWorkerStatus, kill: killRightSortWorker }] = useWorker(customSort, {
         localDependencies() {
-            return {...jsonabc, isArray: utils.isArray, isObject: utils.isPlainObject }
+            return {...jsonabc }
         },
     });
     const [currentlyViewing, setCurrentlyViewing] = useState<{json: any, title: string} | undefined>(undefined);
@@ -393,26 +393,26 @@ export default function Compare() {
     }
 
     function focusOnPreviousDifference() {
-        if (currentDifferenceIndex < 1) return;
-        let newIndex = currentDifferenceIndex - 2;
-        if (newIndex < 0) {
-            newIndex = uniqueDiff.length - 1;
+        if (uniqueDiff.length < 1) return;
+        let newIndex = currentDifferenceIndex - 1;
+        if (newIndex < 1) {
+            newIndex = uniqueDiff.length;
         }
-        focusDifference(newIndex).then(console.log).catch(console.error);
-        if (currentDifferenceIndex <= 1) return;
-        setCurrentDifferenceIndex(newIndex + 1);
+        focusDifference(newIndex - 1).then(console.log).catch(console.error);
+        // if (currentDifferenceIndex <= 1) return;
+        setCurrentDifferenceIndex(newIndex);
     }
 
     function focusOnNextDifference() {
         // console.log(currentDifferenceIndex, uniqueDiff.length);
-        if (currentDifferenceIndex > uniqueDiff.length) return;
-        let newIndex = currentDifferenceIndex;
-        if (newIndex > (uniqueDiff.length - 1)) {
-            newIndex = 0;
+        if (uniqueDiff.length < 1) return;
+        let newIndex = currentDifferenceIndex + 1;
+        if (newIndex > uniqueDiff.length) {
+            newIndex = 1;
         }
-        focusDifference(newIndex).then(console.log).catch(console.error);
-        if (currentDifferenceIndex >= uniqueDiff.length) return;
-        setCurrentDifferenceIndex(newIndex + 1);
+        focusDifference(newIndex - 1).then(console.log).catch(console.error);
+        // if (currentDifferenceIndex >= uniqueDiff.length) return;
+        setCurrentDifferenceIndex(newIndex);
     }
 
     function onSave() {
