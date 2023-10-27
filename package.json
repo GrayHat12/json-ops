@@ -19,7 +19,7 @@
     "dexie": "^3.2.4",
     "dexie-react-hooks": "^1.1.6",
     "isoworker": "^0.2.4",
-    "jsonabc": "github:GrayHat12/jsonabc",
+    "jsonabc": "GrayHat12/jsonabc",
     "localforage": "^1.10.0",
     "match-sorter": "^6.3.1",
     "react": "^18.2.0",

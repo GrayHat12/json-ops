@@ -23,62 +23,25 @@
     text-align: center;
 }
 
-/* .parentdiff > div:first-child {
-    background-color: #F6D283;
-} */
-
-/* .different { */
-    /* --background-color-custom: #F6D283; */
-    /* background-color: #F6D283 !important; */
-/* } */
-
-/* .missing { */
-    /* --background-color-custom: #ED8373; */
-    /* background-color: #ED8373 !important; */
-/* } */
-
-/* .extra { */
-    /* --background-color-custom: #C5DA8B; */
-    /* background-color: #C5DA8B !important; */
-/* } */
-
-/* .different>div>div,
-.missing>div>div,
-.extra>div>div {
-    background-color: var(--background-color-custom) !important;
+.different > div:first-child {
+    --jse-contents-background-color: #f6d283;
 }
 
-.different div,
-.missing div,
-.extra div {
-    color: #292D1C !important;
-    --jse-selection-background-inactive-color: var(--background-color-custom) !important;
-} */
-
-.different,
-.different_parent {
-    --background-color-custom: #F6D283;
+.extra {
+    --jse-contents-background-color: #c5da8b;
 }
+
+.missing {
+    --jse-contents-background-color: #f69283;
+}
+
+.different > div:first-child,
 .extra,
-.extra_parent {
-    --background-color-custom: #C5DA8B;
-}
-.missing,
-.missing_parent {
-    --background-color-custom: #ED8373;
-}
-
-.different>div:first-child>div,
-.extra>div:first-child>div,
-.missing>div:first-child>div {
+.missing {
     color: #292D1C !important;
     --jse-key-color: #292D1C !important;
     background-color: var(--background-color-custom) !important;
-}
-
-.different:first-child,
-.extra:first-child,
-.missing:first-child {
-    color: #292D1C !important;
     --jse-selection-background-inactive-color: var(--background-color-custom) !important;
+    --jse-value-color-string: #292D1C;
+    --jse-delimiter-color: #292D1C;
 }
