@@ -14,7 +14,7 @@ export default function Dashboard() {
             </Grid>
             {savedComparsions?.map(item => {
                 return <Grid key={item.id || useId()}>
-                    <ComparisonCard metadata={{id: item.id as number, title: item.data.title}} /> 
+                    <ComparisonCard metadata={{ id: item.id as number, title: item.data.title }} />
                 </Grid>
             })}
         </Grid.Container>
