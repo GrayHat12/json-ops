@@ -27,11 +27,11 @@
     --jse-contents-background-color: #f6d283;
 }
 
-.extra {
+.extra  > div:first-child {
     --jse-contents-background-color: #c5da8b;
 }
 
-.missing {
+.missing  > div:first-child {
     --jse-contents-background-color: #f69283;
 }
 
